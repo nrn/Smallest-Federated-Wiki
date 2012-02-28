@@ -34,13 +34,13 @@ $ ->
     name.replace(/\s/g, '-').replace(/[^A-Za-z0-9-]/g, '').toLowerCase()
 
   resolveLinks = wiki.resolveLinks = (string) ->
-    renderInternalLink = (match, name) ->
+    renderInternalLink = (match, name, show) ->
       # spaces become 'slugs', non-alpha-num get removed
       slug = asSlug name
       wiki.log 'resolve', slug, 'context', wiki.resolutionContext.join(' => ')
-      "<a class=\"internal\" href=\"/#{slug}.html\" data-page-name=\"#{slug}\" title=\"#{wiki.resolutionContext.join(' => ')}\">#{name}</a>"
+      "<a class=\"internal\" href=\"/#{slug}.html\" data-page-title=\"#{name}\" data-page-name=\"#{slug}\" title=\"#{wiki.resolutionContext.join(' => ')}\">#{show or name}</a>"
     string
-      .replace(/\[\[([^\]]+)\]\]/gi, renderInternalLink)
+      .replace(/\[\[([^\]]+)\]([^\]]*)\]/gi, renderInternalLink)
       .replace(/\[(http.*?) (.*?)\]/gi, "<a class=\"external\" target=\"_blank\" href=\"$1\">$2</a>")
 
   addToJournal = (journalElement, action) ->
@@ -375,7 +375,7 @@ $ ->
             callback(null)
 
     create = (slug, callback) ->
-      title = $("""a[href="/#{slug}.html"]""").html()
+      title = $("""a[href="/#{slug}.html"]""").attr('data-page-title')
       title or= slug
       page = {title}
       putAction $(pageElement), {type: 'create', id: randomBytes(8), item: page}

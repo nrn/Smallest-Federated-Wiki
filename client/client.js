@@ -55,13 +55,13 @@
     };
     resolveLinks = wiki.resolveLinks = function(string) {
       var renderInternalLink;
-      renderInternalLink = function(match, name) {
+      renderInternalLink = function(match, name, show) {
         var slug;
         slug = asSlug(name);
         wiki.log('resolve', slug, 'context', wiki.resolutionContext.join(' => '));
-        return "<a class=\"internal\" href=\"/" + slug + ".html\" data-page-name=\"" + slug + "\" title=\"" + (wiki.resolutionContext.join(' => ')) + "\">" + name + "</a>";
+        return "<a class=\"internal\" href=\"/" + slug + ".html\" data-page-title=\"" + name + "\" data-page-name=\"" + slug + "\" title=\"" + (wiki.resolutionContext.join(' => ')) + "\">" + (show || name) + "</a>";
       };
-      return string.replace(/\[\[([^\]]+)\]\]/gi, renderInternalLink).replace(/\[(http.*?) (.*?)\]/gi, "<a class=\"external\" target=\"_blank\" href=\"$1\">$2</a>");
+      return string.replace(/\[\[([^\]]+)\]([^\]]*)\]/gi, renderInternalLink).replace(/\[(http.*?) (.*?)\]/gi, "<a class=\"external\" target=\"_blank\" href=\"$1\">$2</a>");
     };
     addToJournal = function(journalElement, action) {
       var actionElement, pageElement;
@@ -484,7 +484,7 @@
       };
       create = function(slug, callback) {
         var page, title;
-        title = $("a[href=\"/" + slug + ".html\"]").html();
+        title = $("a[href=\"/" + slug + ".html\"]").attr('data-page-title');
         title || (title = slug);
         page = {
           title: title
