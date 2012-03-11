@@ -88,6 +88,7 @@ joinDeferreds = (deferreds) ->
 
 $ ->
   window.wiki = {}
+  dataDash = DataDash()
 
 #prepare a Dialog to popup
   window.dialog = $('<div></div>')
@@ -132,21 +133,22 @@ $ ->
     pageElement = journalElement.parents('.page:first')
     actionElement = $("<a href=\"\#\" /> ").addClass("action").addClass(action.type)
       .text(action.type[0])
-      .data('itemId', action.id || "0")
+      .dataDash(action)
+      .dataDash('id', action.id || "0")
       .appendTo(journalElement)
     if action.type == 'fork'
       actionElement
         .css("background-image", "url(//#{action.site}/favicon.png)")
         .attr("href", "//#{action.site}/#{pageElement.attr('id')}.html")
-        .data("site", action.site)
-        .data("slug", pageElement.attr('id'))
+        .dataDash("site", action.site)
+        .dataDash("slug", pageElement.attr('id'))
 
   putAction = wiki.putAction = (pageElement, action) ->
-    if (site = pageElement.data('site'))?
+    if (site = pageElement.dataDash('site'))?
       action.fork = site
       pageElement.find('h1 img').attr('src', '/favicon.png')
       pageElement.find('h1 a').attr('href', '/')
-      pageElement.data('site', null)
+      pageElement.dataDash('site', null)
       setUrl()
       addToJournal pageElement.find('.journal'),
         type: 'fork'
@@ -161,10 +163,10 @@ $ ->
     page = localStorage[pageElement.attr("id")]
     page = JSON.parse(page) if page
     page = action.item if action.type == 'create'
-    page ||= pageElement.data("data")
+    page ||= pageToJson(pageElement)
     page.journal = [] unless page.journal?
     page.journal.concat(action)
-    page.story = $(pageElement).find(".item").map(-> $(@).data("item")).get()
+    page.story = $(pageElement).find(".item").map(-> $(@).dataDash()).get()
     localStorage[pageElement.attr("id")] = JSON.stringify(page)
     addToJournal pageElement.find('.journal'), action
 
@@ -210,7 +212,7 @@ $ ->
     "#{h}:#{mi} #{am}<br>#{d.getDate()} #{mo} #{d.getFullYear()}"
 
   getItem = (element) ->
-    $(element).data("item") or JSON.parse($(element).data('staticItem')) if $(element).length > 0
+    $(element).dataDash() or JSON.parse($(element).dataDash('staticItem')) if $(element).length > 0
 
   wiki.getData = ->
     who = $('.chart,.data,.calculator').last()
@@ -221,7 +223,7 @@ $ ->
   wiki.dump = ->
     for p in $('.page')
       wiki.log '.page', p
-      wiki.log '.item', i, 'data-item', $(i).data('item') for i in $(p).find('.item')
+      wiki.log '.item', i, 'data-item', $(i).dataDash() for i in $(p).find('.item')
     null
 
   memoize = (f) ->
@@ -250,7 +252,7 @@ $ ->
       wiki.log(ex.stack)
 
     div.data 'pageElement', div.parents(".page")
-    div.data 'item', item
+    div.dataDash(item)
 
     withPlugin(item.type).map((plugin) ->
       plugin.emit div, item
@@ -308,7 +310,7 @@ $ ->
         div.find('img').dblclick -> wiki.dialog item.text, this
     chart:
       emit: (div, item) ->
-        chartElement = $('<p />').addClass('readout').appendTo(div).text(item.data.last().last())
+        chartElement = $('<p />').addClass('readout').appendTo(div).text(item.dataDash.last().last())
         captionElement = $('<p />').html(resolveLinks(item.caption)).appendTo(div)
       bind: (div, item) ->
         div.find('p:first').mousemove (e) ->
@@ -334,15 +336,15 @@ $ ->
   refresh = ->
     pageElement = $(this)
     slug = $(pageElement).attr('id')
-    site = $(pageElement).data('site')
+    site = $(pageElement).dataDash('site')
 
     pageElement.find(".add-factory").live "click", (evt) ->
       evt.preventDefault()
       item =
         type: "factory"
         id: randomBytes(8)
-      itemElement = $("<div />", class: "item factory").data('item',item).attr('data-id', item.id)
-      itemElement.data 'pageElement', pageElement
+      itemElement = $("<div />", class: "item factory").dataDash(item)
+      itemElement.dataDash 'pageElement', pageElement
       pageElement.find(".story").append(itemElement)
       doPlugin itemElement, item
       beforeElement = itemElement.prev('.item')
@@ -356,7 +358,7 @@ $ ->
           itemElement = ui.item
           item = getItem(itemElement)
           thisPageElement = $(this).parents('.page:first')
-          sourcePageElement = itemElement.data('pageElement')
+          sourcePageElement = itemElement.dataDash('pageElement')
           destinationPageElement = itemElement.parents('.page:first')
           journalElement = thisPageElement.find('.journal')
           equals = (a, b) -> a and b and a.get(0) == b.get(0)
@@ -366,12 +368,12 @@ $ ->
           moveToPage = not moveWithinPage and equals(thisPageElement, destinationPageElement)
 
           action = if moveWithinPage
-            order = $(this).children().map((_, value) -> $(value).attr('data-id')).get()
+            order = $(this).children().map((_, value) -> $(value).dataDash('id')).get()
             {type: 'move', order: order}
           else if moveFromPage
             {type: 'remove'}
           else if moveToPage
-            itemElement.data 'pageElement', thisPageElement
+            itemElement.dataDash 'pageElement', thisPageElement
             beforeElement = itemElement.prev('.item')
             before = getItem(beforeElement)
             {type: 'add', item: item, after: before?.id}
@@ -389,7 +391,8 @@ $ ->
         journal: []
 
       page = $.extend(empty, data)
-      $(pageElement).data("data", data)
+      {title} = data
+      $(pageElement).dataDash({title})
 
       context = ['origin']
       addContext = (string) ->
@@ -422,7 +425,7 @@ $ ->
         $("<div />").addClass(className).appendTo(pageElement)
 
       $.each page.story, (i, item) ->
-        div = $("<div />").addClass("item").addClass(item.type).attr("data-id", item.id)
+        div = $("<div />").addClass("item").addClass(item.type).dataDash(item)
         storyElement.append div
         doPlugin div, item
 
@@ -452,7 +455,7 @@ $ ->
         url: "/#{resource}.json?random=#{randomBytes(4)}"
         success: (page) ->
           wiki.log 'fetch success', page, site || 'origin'
-          $(pageElement).data('site', site)
+          $(pageElement).dataDash({site})
           callback(page)
         error: (xhr, type, msg) ->
           if localContext.length > 0
@@ -468,7 +471,7 @@ $ ->
       putAction $(pageElement), {type: 'create', id: randomBytes(8), item: page}
       callback page
 
-    if $(pageElement).attr('data-server-generated') == 'true'
+    if $(pageElement).dataDash('server-generated') == 'true'
       initDragging()
       pageElement.find('.item').each (i, each) ->
         div = $(each)
@@ -559,14 +562,14 @@ $ ->
 
   locsInDom = ->
     $.makeArray $(".page").map (_, el) ->
-      $(el).data('site') or 'view'
+      $(el).dataDash('site') or 'view'
 
   urlLocs = ->
     (j for j in $(location).attr('pathname').split('/')[1..] by 2)
 
   createPage = (name, loc) ->
     if loc and (loc isnt ('view' or 'my'))
-      $("<div/>").attr('id', name).attr('data-site', loc).addClass("page")
+      $("<div/>").attr('id', name).dataDash('site', loc).addClass("page")
     else
       $("<div/>").attr('id', name).addClass("page")
 
@@ -582,11 +585,19 @@ $ ->
       msg = "<li class='error'>Error on #{settings.url}: #{request.responseText}</li>"
       $('.main').prepend msg unless request.status == 404
 
+  pageToJson = (element) ->
+    return {
+      title: element.dataDash('title')
+      story: element.children('.story').children().dataDash()
+      journal: element.children('.journal').children().dataDash()
+    }
+
+
   $('.main')
     .delegate '.show-page-source', 'click', (e) ->
       e.preventDefault()
       pageElement = $(this).parent().parent()
-      json = pageElement.data('data')
+      json = pageToJson(pageElement)
       wiki.dialog "JSON for #{json.title}",  $('<pre/>').text(JSON.stringify(json, null, 2))
 
     .delegate '.page', 'click', (e) ->
@@ -594,7 +605,7 @@ $ ->
 
     .delegate '.internal', 'click', (e) ->
       e.preventDefault()
-      name = $(e.target).data 'pageName'
+      name = $(e.target).dataDash 'pageName'
       wiki.fetchContext = $(e.target).attr('title').split(' => ')
       wiki.log 'click', name, 'context', wiki.fetchContext
       $(e.target).parents('.page').nextAll().remove() unless e.shiftKey
@@ -603,16 +614,16 @@ $ ->
       # FIXME: can open page multiple times with shift key
 
     .delegate '.action', 'hover', ->
-      id = $(this).data('itemId')
+      id = $(this).dataDash('id')
       $("[data-id=#{id}]").toggleClass('target')
 
     .delegate '.action.fork, .remote', 'click', (e) ->
       e.preventDefault()
-      name = $(e.target).data('slug')
-      wiki.log 'click', name, 'site', $(e.target).data('site')
+      name = $(e.target).dataDash('slug')
+      wiki.log 'click', name, 'site', $(e.target).dataDash('site')
       $(e.target).parents('.page').nextAll().remove() unless e.shiftKey
       createPage(name)
-        .data('site',$(e.target).data('site'))
+        .dataDash('site',$(e.target).dataDash('site'))
         .appendTo($('.main'))
         .each refresh
       setActive(name)
@@ -620,7 +631,7 @@ $ ->
   useLocalStorage = -> $(".login").length > 0
 
   $(".provider input").click ->
-    $("footer input:first").val $(this).attr('data-provider')
+    $("footer input:first").val $(this).dataDash('provider')
     $("footer form").submit()
 
   setUrl()
