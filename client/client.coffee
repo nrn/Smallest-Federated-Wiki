@@ -88,7 +88,7 @@ joinDeferreds = (deferreds) ->
 
 $ ->
   window.wiki = {}
-  dataDash = DataDash()
+  dataDash = wiki.dataDash = DataDash({stats: true})
 
 #prepare a Dialog to popup
   window.dialog = $('<div></div>')
