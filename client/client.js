@@ -302,7 +302,7 @@
       var who;
       who = $('.chart,.data,.calculator').last();
       if (who != null) {
-        return who.data('item').data;
+        return who.dataDash('data')[0];
       } else {
         return {};
       }
@@ -444,7 +444,7 @@
       chart: {
         emit: function(div, item) {
           var captionElement, chartElement;
-          chartElement = $('<p />').addClass('readout').appendTo(div).text(item.dataDash.last().last());
+          chartElement = $('<p />').addClass('readout').appendTo(div).text(item.data.last().last());
           return captionElement = $('<p />').html(resolveLinks(item.caption)).appendTo(div);
         },
         bind: function(div, item) {
@@ -465,7 +465,7 @@
           _results = [];
           for (i = 0, _ref = localStorage.length; 0 <= _ref ? i < _ref : i > _ref; 0 <= _ref ? i++ : i--) {
             key = localStorage.key(i);
-            a = $('<a class="internal" href="#" />').append(key).data('pageName', key);
+            a = $('<a class="internal" href="#" />').append(key).dataDash('pageName', key);
             _results.push(ul.prepend($('<li />').append(a)));
           }
           return _results;

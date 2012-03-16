@@ -216,7 +216,7 @@ $ ->
 
   wiki.getData = ->
     who = $('.chart,.data,.calculator').last()
-    if who? then who.data('item').data else {}
+    if who? then who.dataDash('data')[0] else {}
 
   getScript = wiki.getScript = (url, callback) -> withScript(url).done(callback)
 
@@ -310,7 +310,7 @@ $ ->
         div.find('img').dblclick -> wiki.dialog item.text, this
     chart:
       emit: (div, item) ->
-        chartElement = $('<p />').addClass('readout').appendTo(div).text(item.dataDash.last().last())
+        chartElement = $('<p />').addClass('readout').appendTo(div).text(item.data.last().last())
         captionElement = $('<p />').html(resolveLinks(item.caption)).appendTo(div)
       bind: (div, item) ->
         div.find('p:first').mousemove (e) ->
@@ -324,7 +324,7 @@ $ ->
         div.append ul = $('<ul />').append if localStorage.length then $('<input type="button" value="discard all" />').css('margin-top','10px') else $('<p>empty</p>')
         for i in [0...localStorage.length]
           key = localStorage.key(i)
-          a = $('<a class="internal" href="#" />').append(key).data('pageName', key)
+          a = $('<a class="internal" href="#" />').append(key).dataDash('pageName', key)
           ul.prepend($('<li />').append(a))
       bind: (div, item) ->
         div.find('input').click ->
