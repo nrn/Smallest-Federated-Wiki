@@ -1,9 +1,8 @@
 window.plugins.mathjax =
+  scripts: ["http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"]
   emit: (div, item) ->
-    typeset = ->
-      window.MathJax.Hub.Typeset div.get(0)
-
-    wiki.getScript 'http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML', typeset
     div.append "<p>#{wiki.resolveLinks(item.text)}</p>"
+    window.MathJax.Hub.Config skipStartupTypeset: true
+    MathJax.Hub.Queue(["Typeset", MathJax.Hub, div.get(0)])
   bind: (div, item) ->
     div.dblclick -> wiki.textEditor div, item

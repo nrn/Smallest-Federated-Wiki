@@ -1,13 +1,112 @@
 (function() {
-  var __slice = Array.prototype.slice,
+  var finished, joinDeferreds, oldDeferred, pimpPromise,
+    __slice = Array.prototype.slice,
     __indexOf = Array.prototype.indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   Array.prototype.last = function() {
     return this[this.length - 1];
   };
 
+  pimpPromise = function(wrapped) {
+    var oldPromise;
+    wrapped._proxy = function(deferred) {
+      var thisDeferred,
+        _this = this;
+      thisDeferred = this;
+      deferred.done(function() {
+        return thisDeferred.resolve.apply(this, arguments);
+      });
+      return deferred.fail(function() {
+        return thisDeferred.reject.apply(_this, arguments);
+      });
+    };
+    wrapped.map = function(f) {
+      var deferred;
+      deferred = new $.Deferred();
+      this.done(function(value) {
+        try {
+          return deferred.resolve(f(value));
+        } catch (error) {
+          return deferred.reject(error);
+        }
+      });
+      this.fail(function(value) {
+        return deferred.reject.apply(deferred, arguments);
+      });
+      return deferred;
+    };
+    wrapped.filter = function(p) {
+      var deferred;
+      deferred = new $.Deferred();
+      this.done(function(value) {
+        if (p(value)) {
+          return deferred._proxy(this);
+        } else {
+          return deferred.reject();
+        }
+      });
+      this.fail(function() {
+        return deferred.reject.apply(deferred, arguments);
+      });
+      return deferred;
+    };
+    wrapped.flatMap = function(f) {
+      var deferred;
+      deferred = new $.Deferred();
+      this.done(function(value) {
+        try {
+          return deferred._proxy(f(value));
+        } catch (error) {
+          return deferred.reject(error);
+        }
+      });
+      this.fail(function(value) {
+        return deferred.reject.apply(deferred, arguments);
+      });
+      return deferred;
+    };
+    oldPromise = wrapped.promise;
+    wrapped.promise = function() {
+      var np;
+      np = oldPromise.apply(this, arguments);
+      pimpPromise(np);
+      return np;
+    };
+    return wrapped;
+  };
+
+  oldDeferred = $.Deferred;
+
+  $.Deferred = function() {
+    var wrapped;
+    wrapped = oldDeferred.apply($, arguments);
+    pimpPromise(wrapped);
+    return wrapped;
+  };
+
+  finished = $.Deferred().resolve(true);
+
+  joinDeferreds = function(deferreds) {
+    var count, result;
+    console.log("joining " + deferreds.length);
+    result = $.Deferred();
+    count = deferreds.length;
+    deferreds.map(function(def) {
+      def.done(function() {
+        count = count - 1;
+        if (count === 0) return result.resolve(true);
+      });
+      return def.fail(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        return result.reject.apply(result, args);
+      });
+    });
+    return result;
+  };
+
   $(function() {
-    var LEFTARROW, RIGHTARROW, addToJournal, asSlug, createPage, doInternalLink, doPlugin, findScrollContainer, firstUrlLocs, firstUrlPages, formatTime, getItem, getPlugin, idx, locsInDom, pagesInDom, pushToLocal, pushToServer, putAction, randomByte, randomBytes, refresh, resolveFrom, resolveLinks, scripts, scrollContainer, scrollTo, setActive, setUrl, showState, textEditor, urlLocs, urlPage, urlPages, useLocalStorage, _len;
+    var LEFTARROW, RIGHTARROW, addToJournal, asSlug, createPage, doInternalLink, doPlugin, findScrollContainer, firstUrlLocs, firstUrlPages, formatTime, getItem, getPlugin, getScript, idx, locsInDom, pagesInDom, pushToLocal, pushToServer, putAction, randomByte, randomBytes, refresh, resolveFrom, resolveLinks, scriptDeferreds, scrollContainer, scrollTo, setActive, setUrl, showState, textEditor, urlLocs, urlPage, urlPages, useLocalStorage, withPlugin, withScript, _len;
     window.wiki = {};
     window.dialog = $('<div></div>').html('This dialog will show every time!').dialog({
       autoOpen: false,
@@ -36,9 +135,6 @@
     wiki.log = function() {
       var things;
       things = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
-      if ((typeof console !== "undefined" && console !== null ? console.log : void 0) != null) {
-        return console.log(things);
-      }
     };
     wiki.resolutionContext = [];
     wiki.fetchContext = [];
@@ -174,17 +270,8 @@
         return {};
       }
     };
-    scripts = {};
-    wiki.getScript = function(url, callback) {
-      if (callback == null) callback = function() {};
-      if (scripts[url] != null) {
-        return callback();
-      } else {
-        return $.getScript(url, function() {
-          scripts[url] = true;
-          return callback();
-        });
-      }
+    getScript = wiki.getScript = function(url, callback) {
+      return withScript(url).done(callback);
     };
     wiki.dump = function() {
       var i, p, _i, _j, _len, _len2, _ref, _ref2;
@@ -200,12 +287,17 @@
       }
       return null;
     };
-    getPlugin = wiki.getPlugin = function(name, callback) {
-      var plugin;
-      if (plugin = window.plugins[name]) return callback(plugin);
-      return wiki.getScript("/plugins/" + name + ".js", function() {
-        return callback(window.plugins[name]);
+    scriptDeferreds = {};
+    wiki.withScript = withScript = function(url) {
+      return scriptDeferreds[url] || (scriptDeferreds[url] = $.getScript(url));
+    };
+    withPlugin = function(name) {
+      return withScript("/plugins/" + name + ".js").map(function() {
+        return window.plugins[name];
       });
+    };
+    getPlugin = wiki.getPlugin = function(name, callback) {
+      return withPlugin(name).done(callback);
     };
     doPlugin = wiki.doPlugin = function(div, item) {
       var error;
@@ -215,23 +307,17 @@
         errorElement.text(ex.toString());
         return div.append(errorElement);
       };
-      try {
-        div.data('pageElement', div.parents(".page"));
-        div.data('item', item);
-        return getPlugin(item.type, function(plugin) {
-          if (plugin == null) {
-            throw TypeError("Can't find plugin for '" + item.type + "'");
-          }
-          try {
-            plugin.emit(div, item);
-            return plugin.bind(div, item);
-          } catch (err) {
-            return error(err);
-          }
+      div.data('pageElement', div.parents(".page"));
+      div.data('item', item);
+      finished = withPlugin(item.type).flatMap(function(plugin) {
+        console.log("plugin loaded: " + item.type);
+        return joinDeferreds((plugin.scripts || []).map(withScript)).map(function() {
+          console.log("loaded scripts");
+          plugin.emit(div, item);
+          return plugin.bind(div, item);
         });
-      } catch (err) {
-        return error(err);
-      }
+      });
+      return finished.fail(error);
     };
     doInternalLink = wiki.doInternalLink = function(name, page) {
       name = asSlug(name);

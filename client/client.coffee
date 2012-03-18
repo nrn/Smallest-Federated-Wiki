@@ -1,6 +1,93 @@
 Array::last = ->
   this[@length - 1]
 
+# =============================
+# =============================
+# Extensions to jQuery deferred inspired by Jesse Hallet from https://github.com/jashkenas/coffee-script/issues/1032
+
+pimpPromise = (wrapped) ->
+  wrapped._proxy = (deferred) ->
+    thisDeferred = @
+    deferred.done () ->
+      thisDeferred.resolve.apply this, arguments
+    deferred.fail =>
+      thisDeferred.reject.apply this, arguments
+
+  wrapped.map = (f) ->
+    deferred = new $.Deferred()
+    this.done (value) ->
+      try
+        deferred.resolve f(value)
+      catch error
+        deferred.reject(error)
+    this.fail (value) ->
+      deferred.reject.apply deferred, arguments
+    deferred
+
+  wrapped.filter = (p) ->
+    deferred = new $.Deferred()
+    this.done (value) ->
+      if p(value)
+        deferred._proxy this
+      else
+        deferred.reject()
+    this.fail ->
+      deferred.reject.apply(deferred, arguments)
+    deferred
+
+  wrapped.flatMap = (f) ->
+    deferred = new $.Deferred()
+
+    this.done (value) ->
+      try
+        deferred._proxy(f(value))
+      catch error
+        deferred.reject(error)
+    this.fail (value) ->
+      deferred.reject.apply(deferred, arguments)
+
+    deferred
+
+  oldPromise = wrapped.promise
+  wrapped.promise = ->
+    np = oldPromise.apply(this, arguments)
+    pimpPromise(np)
+    np
+
+  wrapped
+
+
+oldDeferred = $.Deferred
+$.Deferred = ->
+  wrapped = oldDeferred.apply($, arguments)
+  pimpPromise(wrapped)
+  wrapped
+
+finished = $.Deferred().resolve(true)
+
+joinDeferreds = (deferreds) ->
+  result = $.Deferred()
+  count = deferreds.length
+  deferreds.map (def) ->
+    def.done ->
+      count = count - 1
+      if count == 0
+        result.resolve(true)
+    def.fail (args...) ->
+      result.reject(args...)
+  result
+
+  # TODO: figure out what is wrong with the reduce approach below
+
+  # ret = deferreds.reduce(((a, b) ->
+  #   a.flatMap (v) -> b
+  # ), finished)
+  # console.log("done")
+  # ret.done (i) -> alert("done loading scripts!")
+  # ret
+# =============================
+# =============================
+
 $ ->
   window.wiki = {}
 
@@ -131,15 +218,7 @@ $ ->
     who = $('.chart,.data,.calculator').last()
     if who? then who.data('item').data else {}
 
-  scripts = {}
-  wiki.getScript = (url, callback = () ->) ->
-    if scripts[url]?
-      callback()
-    else
-      $.getScript(url, ->
-        scripts[url] = true
-        callback()
-      )
+  getScript = wiki.getScript = (url, callback) -> withScript(url).done(callback)
 
   wiki.dump = ->
     for p in $('.page')
@@ -147,10 +226,14 @@ $ ->
       wiki.log '.item', i, 'data-item', $(i).data('item') for i in $(p).find('.item')
     null
 
+
+  scriptDeferreds = {}
+  wiki.withScript = withScript = (url) -> scriptDeferreds[url] ||= $.getScript(url)
+
+  withPlugin = (name) -> withScript("/plugins/#{name}.js").map -> window.plugins[name]
+
   getPlugin = wiki.getPlugin = (name, callback) ->
-    return callback(plugin) if plugin = window.plugins[name]
-    wiki.getScript "/plugins/#{name}.js", () ->
-      callback(window.plugins[name])
+    withPlugin(name).done(callback)
 
   doPlugin = wiki.doPlugin = (div, item) ->
     error = (ex) ->
@@ -158,18 +241,16 @@ $ ->
       errorElement.text(ex.toString())
       div.append(errorElement)
 
-    try
-      div.data 'pageElement', div.parents(".page")
-      div.data 'item', item
-      getPlugin item.type, (plugin) ->
-        throw TypeError("Can't find plugin for '#{item.type}'") unless plugin?
-        try
-          plugin.emit div, item
-          plugin.bind div, item
-        catch err
-          error(err)
-    catch err
-      error(err)
+    div.data 'pageElement', div.parents(".page")
+    div.data 'item', item
+
+    finished = withPlugin(item.type).flatMap (plugin) ->
+
+      joinDeferreds((plugin.scripts || []).map(withScript)).map ->
+        plugin.emit div, item
+        plugin.bind div, item
+
+    finished.fail error
 
   doInternalLink = wiki.doInternalLink = (name, page) ->
     name = asSlug(name)
