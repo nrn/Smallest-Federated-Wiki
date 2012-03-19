@@ -365,7 +365,6 @@
         div.append(errorElement);
         return wiki.log(ex.stack);
       };
-      div.data('pageElement', div.parents(".page"));
       div.dataDash(item);
       return withPlugin(item.type).map(function(plugin) {
         plugin.emit(div, item);
@@ -504,7 +503,6 @@
         itemElement = $("<div />", {
           "class": "item factory"
         }).dataDash(item);
-        itemElement.dataDash('pageElement', pageElement);
         pageElement.find(".story").append(itemElement);
         doPlugin(itemElement, item);
         beforeElement = itemElement.prev('.item');
@@ -525,7 +523,7 @@
             itemElement = ui.item;
             item = getItem(itemElement);
             thisPageElement = $(this).parents('.page:first');
-            sourcePageElement = itemElement.dataDash('pageElement')[0];
+            sourcePageElement = itemElement.parents(".page");
             destinationPageElement = itemElement.parents('.page:first');
             journalElement = thisPageElement.find('.journal');
             equals = function(a, b) {
@@ -539,7 +537,7 @@
               order: order
             }) : moveFromPage ? {
               type: 'remove'
-            } : moveToPage ? (itemElement.dataDash('pageElement', thisPageElement), beforeElement = itemElement.prev('.item'), before = getItem(beforeElement), {
+            } : moveToPage ? (beforeElement = itemElement.prev('.item'), before = getItem(beforeElement), {
               type: 'add',
               item: item,
               after: before != null ? before.id : void 0
