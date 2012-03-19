@@ -6,45 +6,52 @@ Array::last = ->
 # Extensions to jQuery deferred inspired by Jesse Hallet from https://github.com/jashkenas/coffee-script/issues/1032
 
 pimpPromise = (wrapped) ->
-  wrapped._proxy = (deferred) ->
-    thisDeferred = @
-    deferred.done () ->
-      thisDeferred.resolve.apply this, arguments
-    deferred.fail =>
-      thisDeferred.reject.apply this, arguments
+  proxy = (a, b) ->
+    a.done (args...) -> b.resolve(args...)
+    a.fail (args...) -> b.reject(args...)
 
   wrapped.map = (f) ->
     deferred = new $.Deferred()
-    this.done (value) ->
+    @done (args...) ->
       try
-        deferred.resolve f(value)
+        deferred.resolve f(args...)
       catch error
         deferred.reject(error)
-    this.fail (value) ->
-      deferred.reject.apply deferred, arguments
+    @fail (args...) ->
+      deferred.reject(args...)
     deferred
 
   wrapped.filter = (p) ->
     deferred = new $.Deferred()
-    this.done (value) ->
-      if p(value)
-        deferred._proxy this
+    @done (args...) ->
+      if p(args...)
+        deferred.resolve args...
       else
         deferred.reject()
-    this.fail ->
-      deferred.reject.apply(deferred, arguments)
+    @fail (args...) ->
+      deferred.reject(args...)
+    deferred
+
+  wrapped.handle = (f) ->
+    deferred = new $.Deferred()
+    @done (args...) -> deferred.resolve(args...)
+    @fail (args...) ->
+      try
+        deferred.resolve(f(args...))
+      catch error
+        deferred.reject(error)
+
     deferred
 
   wrapped.flatMap = (f) ->
     deferred = new $.Deferred()
-
-    this.done (value) ->
+    @done (args...) ->
       try
-        deferred._proxy(f(value))
+        proxy(f(args...), deferred)
       catch error
         deferred.reject(error)
-    this.fail (value) ->
-      deferred.reject.apply(deferred, arguments)
+    @fail (args...) ->
+      deferred.reject(args...)
 
     deferred
 
@@ -54,37 +61,28 @@ pimpPromise = (wrapped) ->
     pimpPromise(np)
     np
 
+  wrapped.within = (ms) ->
+    deferred = $.Deferred()
+    setTimeout((-> deferred.reject("Request timed out (#{ms})")), ms)
+    proxy(@, deferred)
+    deferred
+
   wrapped
 
 
 oldDeferred = $.Deferred
-$.Deferred = ->
-  wrapped = oldDeferred.apply($, arguments)
+$.Deferred = (args...) ->
+  wrapped = oldDeferred.apply($, args)
   pimpPromise(wrapped)
   wrapped
 
-finished = $.Deferred().resolve(true)
 
 joinDeferreds = (deferreds) ->
-  result = $.Deferred()
-  count = deferreds.length
-  deferreds.map (def) ->
-    def.done ->
-      count = count - 1
-      if count == 0
-        result.resolve(true)
-    def.fail (args...) ->
-      result.reject(args...)
-  result
+  finishedPromise = $.Deferred().resolve(true)
+  deferreds.reduce(((a, b) ->
+    a.flatMap (v) -> b
+  ), finishedPromise)
 
-  # TODO: figure out what is wrong with the reduce approach below
-
-  # ret = deferreds.reduce(((a, b) ->
-  #   a.flatMap (v) -> b
-  # ), finished)
-  # console.log("done")
-  # ret.done (i) -> alert("done loading scripts!")
-  # ret
 # =============================
 # =============================
 
@@ -226,11 +224,20 @@ $ ->
       wiki.log '.item', i, 'data-item', $(i).data('item') for i in $(p).find('.item')
     null
 
+  memoize = (f) ->
+    cache = {}
+    (arg) -> cache[arg] ||= f(arg)
 
-  scriptDeferreds = {}
-  wiki.withScript = withScript = (url) -> scriptDeferreds[url] ||= $.getScript(url)
+  SCRIPT_TIMEOUT = 5000
+  wiki.withScript = withScript = memoize (url) ->
+    $.getScript(url).within(SCRIPT_TIMEOUT).handle -> throw "Error loading #{url}"
 
-  withPlugin = (name) -> withScript("/plugins/#{name}.js").map -> window.plugins[name]
+  withPlugin = memoize (name) -> withScript("/plugins/#{name}.js").flatMap ->
+    plugin = window.plugins[name]
+    joinDeferreds((plugin.scripts || []).map((s) -> d = withScript(s); d.name = s; d)).map ->
+      plugin.init?()
+      plugin
+
 
   getPlugin = wiki.getPlugin = (name, callback) ->
     withPlugin(name).done(callback)
@@ -240,17 +247,15 @@ $ ->
       errorElement = $("<div />").addClass('error')
       errorElement.text(ex.toString())
       div.append(errorElement)
+      wiki.log(ex.stack)
 
     div.data 'pageElement', div.parents(".page")
     div.data 'item', item
 
-    finished = withPlugin(item.type).flatMap (plugin) ->
-
-      joinDeferreds((plugin.scripts || []).map(withScript)).map ->
-        plugin.emit div, item
-        plugin.bind div, item
-
-    finished.fail error
+    withPlugin(item.type).map((plugin) ->
+      plugin.emit div, item
+      plugin.bind div, item
+    ).fail error
 
   doInternalLink = wiki.doInternalLink = (name, page) ->
     name = asSlug(name)

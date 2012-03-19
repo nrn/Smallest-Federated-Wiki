@@ -1,5 +1,5 @@
 (function() {
-  var finished, joinDeferreds, oldDeferred, pimpPromise,
+  var joinDeferreds, oldDeferred, pimpPromise,
     __slice = Array.prototype.slice,
     __indexOf = Array.prototype.indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
@@ -8,60 +8,92 @@
   };
 
   pimpPromise = function(wrapped) {
-    var oldPromise;
-    wrapped._proxy = function(deferred) {
-      var thisDeferred,
-        _this = this;
-      thisDeferred = this;
-      deferred.done(function() {
-        return thisDeferred.resolve.apply(this, arguments);
+    var oldPromise, proxy;
+    proxy = function(a, b) {
+      a.done(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        return b.resolve.apply(b, args);
       });
-      return deferred.fail(function() {
-        return thisDeferred.reject.apply(_this, arguments);
+      return a.fail(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        return b.reject.apply(b, args);
       });
     };
     wrapped.map = function(f) {
       var deferred;
       deferred = new $.Deferred();
-      this.done(function(value) {
+      this.done(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
         try {
-          return deferred.resolve(f(value));
+          return deferred.resolve(f.apply(null, args));
         } catch (error) {
           return deferred.reject(error);
         }
       });
-      this.fail(function(value) {
-        return deferred.reject.apply(deferred, arguments);
+      this.fail(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        return deferred.reject.apply(deferred, args);
       });
       return deferred;
     };
     wrapped.filter = function(p) {
       var deferred;
       deferred = new $.Deferred();
-      this.done(function(value) {
-        if (p(value)) {
-          return deferred._proxy(this);
+      this.done(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        if (p.apply(null, args)) {
+          return deferred.resolve.apply(deferred, args);
         } else {
           return deferred.reject();
         }
       });
       this.fail(function() {
-        return deferred.reject.apply(deferred, arguments);
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        return deferred.reject.apply(deferred, args);
+      });
+      return deferred;
+    };
+    wrapped.handle = function(f) {
+      var deferred;
+      deferred = new $.Deferred();
+      this.done(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        return deferred.resolve.apply(deferred, args);
+      });
+      this.fail(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        try {
+          return deferred.resolve(f.apply(null, args));
+        } catch (error) {
+          return deferred.reject(error);
+        }
       });
       return deferred;
     };
     wrapped.flatMap = function(f) {
       var deferred;
       deferred = new $.Deferred();
-      this.done(function(value) {
+      this.done(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
         try {
-          return deferred._proxy(f(value));
+          return proxy(f.apply(null, args), deferred);
         } catch (error) {
           return deferred.reject(error);
         }
       });
-      this.fail(function(value) {
-        return deferred.reject.apply(deferred, arguments);
+      this.fail(function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        return deferred.reject.apply(deferred, args);
       });
       return deferred;
     };
@@ -72,41 +104,40 @@
       pimpPromise(np);
       return np;
     };
+    wrapped.within = function(ms) {
+      var deferred;
+      deferred = $.Deferred();
+      setTimeout((function() {
+        return deferred.reject("Request timed out (" + ms + ")");
+      }), ms);
+      proxy(this, deferred);
+      return deferred;
+    };
     return wrapped;
   };
 
   oldDeferred = $.Deferred;
 
   $.Deferred = function() {
-    var wrapped;
-    wrapped = oldDeferred.apply($, arguments);
+    var args, wrapped;
+    args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+    wrapped = oldDeferred.apply($, args);
     pimpPromise(wrapped);
     return wrapped;
   };
 
-  finished = $.Deferred().resolve(true);
-
   joinDeferreds = function(deferreds) {
-    var count, result;
-    console.log("joining " + deferreds.length);
-    result = $.Deferred();
-    count = deferreds.length;
-    deferreds.map(function(def) {
-      def.done(function() {
-        count = count - 1;
-        if (count === 0) return result.resolve(true);
+    var finishedPromise;
+    finishedPromise = $.Deferred().resolve(true);
+    return deferreds.reduce((function(a, b) {
+      return a.flatMap(function(v) {
+        return b;
       });
-      return def.fail(function() {
-        var args;
-        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
-        return result.reject.apply(result, args);
-      });
-    });
-    return result;
+    }), finishedPromise);
   };
 
   $(function() {
-    var LEFTARROW, RIGHTARROW, addToJournal, asSlug, createPage, doInternalLink, doPlugin, findScrollContainer, firstUrlLocs, firstUrlPages, formatTime, getItem, getPlugin, getScript, idx, locsInDom, pagesInDom, pushToLocal, pushToServer, putAction, randomByte, randomBytes, refresh, resolveFrom, resolveLinks, scriptDeferreds, scrollContainer, scrollTo, setActive, setUrl, showState, textEditor, urlLocs, urlPage, urlPages, useLocalStorage, withPlugin, withScript, _len;
+    var LEFTARROW, RIGHTARROW, SCRIPT_TIMEOUT, addToJournal, asSlug, createPage, doInternalLink, doPlugin, findScrollContainer, firstUrlLocs, firstUrlPages, formatTime, getItem, getPlugin, getScript, idx, locsInDom, memoize, pagesInDom, pushToLocal, pushToServer, putAction, randomByte, randomBytes, refresh, resolveFrom, resolveLinks, scrollContainer, scrollTo, setActive, setUrl, showState, textEditor, urlLocs, urlPage, urlPages, useLocalStorage, withPlugin, withScript, _len;
     window.wiki = {};
     window.dialog = $('<div></div>').html('This dialog will show every time!').dialog({
       autoOpen: false,
@@ -135,6 +166,9 @@
     wiki.log = function() {
       var things;
       things = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+      if ((typeof console !== "undefined" && console !== null ? console.log : void 0) != null) {
+        return console.log(things);
+      }
     };
     wiki.resolutionContext = [];
     wiki.fetchContext = [];
@@ -287,15 +321,34 @@
       }
       return null;
     };
-    scriptDeferreds = {};
-    wiki.withScript = withScript = function(url) {
-      return scriptDeferreds[url] || (scriptDeferreds[url] = $.getScript(url));
+    memoize = function(f) {
+      var cache;
+      cache = {};
+      return function(arg) {
+        return cache[arg] || (cache[arg] = f(arg));
+      };
     };
-    withPlugin = function(name) {
-      return withScript("/plugins/" + name + ".js").map(function() {
-        return window.plugins[name];
+    SCRIPT_TIMEOUT = 5000;
+    wiki.withScript = withScript = memoize(function(url) {
+      return $.getScript(url).within(SCRIPT_TIMEOUT).handle(function() {
+        throw "Error loading " + url;
       });
-    };
+    });
+    withPlugin = memoize(function(name) {
+      return withScript("/plugins/" + name + ".js").flatMap(function() {
+        var plugin;
+        plugin = window.plugins[name];
+        return joinDeferreds((plugin.scripts || []).map(function(s) {
+          var d;
+          d = withScript(s);
+          d.name = s;
+          return d;
+        })).map(function() {
+          if (typeof plugin.init === "function") plugin.init();
+          return plugin;
+        });
+      });
+    });
     getPlugin = wiki.getPlugin = function(name, callback) {
       return withPlugin(name).done(callback);
     };
@@ -305,19 +358,15 @@
         var errorElement;
         errorElement = $("<div />").addClass('error');
         errorElement.text(ex.toString());
-        return div.append(errorElement);
+        div.append(errorElement);
+        return wiki.log(ex.stack);
       };
       div.data('pageElement', div.parents(".page"));
       div.data('item', item);
-      finished = withPlugin(item.type).flatMap(function(plugin) {
-        console.log("plugin loaded: " + item.type);
-        return joinDeferreds((plugin.scripts || []).map(withScript)).map(function() {
-          console.log("loaded scripts");
-          plugin.emit(div, item);
-          return plugin.bind(div, item);
-        });
-      });
-      return finished.fail(error);
+      return withPlugin(item.type).map(function(plugin) {
+        plugin.emit(div, item);
+        return plugin.bind(div, item);
+      }).fail(error);
     };
     doInternalLink = wiki.doInternalLink = function(name, page) {
       name = asSlug(name);
