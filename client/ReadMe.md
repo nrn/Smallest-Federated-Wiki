@@ -37,3 +37,13 @@ CoffeeScript hints
 The coffee translator is a node.js package, so you'll need to install a recent version from http://nodejs.org/#download
 and then the npm package manager from http://npmjs.org/
 and then install coffee http://jashkenas.github.com/coffee-script/
+
+Testing
+=======
+
+Unit tests are currently being added using the Mocha framework.
+You can run them at /runtest.html
+
+
+
+

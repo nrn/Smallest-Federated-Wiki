@@ -1,13 +1,12 @@
 (function() {
   var addToJournal, asSlug, createPage, doInternalLink, doPlugin, formatTime, getItem, getPlugin, locsInDom, pageToJson, pagesInDom, pushToLocal, pushToServer, putAction, randomByte, randomBytes, refresh, resolveFrom, resolveLinks, scripts, textEditor, urlLocs, urlPages, wiki,
-    __slice = Array.prototype.slice,
-    __indexOf = Array.prototype.indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
+    __slice = Array.prototype.slice;
 
   Array.prototype.last = function() {
     return this[this.length - 1];
   };
 
-  wiki = {};
+  wiki = window.wiki = {};
 
   randomByte = wiki.randomByte = function() {
     return (((1 + Math.random()) * 0x100) | 0).toString(16).substring(1);
@@ -622,9 +621,17 @@
     }
   };
 
+}).call(this);
+(function() {
+  var createPage, locsInDom, pagesInDom, urlLocs, urlPages, wiki,
+    __indexOf = Array.prototype.indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
+
+  wiki = window.wiki;
+
+  locsInDom = wiki.locsInDom, pagesInDom = wiki.pagesInDom, urlPages = wiki.urlPages, urlLocs = wiki.urlLocs, createPage = wiki.createPage;
+
   $(function() {
-    var LEFTARROW, RIGHTARROW, dataDash, findScrollContainer, firstUrlLocs, firstUrlPages, idx, scrollContainer, scrollTo, setActive, setUrl, showState, urlPage, useLocalStorage, _len;
-    window.wiki = wiki;
+    var LEFTARROW, RIGHTARROW, dataDash, findScrollContainer, firstUrlLocs, firstUrlPages, idx, refresh, scrollContainer, scrollTo, setActive, setUrl, showState, urlPage, useLocalStorage, _len;
     dataDash = wiki.dataDash = DataDash({
       stats: true
     });
