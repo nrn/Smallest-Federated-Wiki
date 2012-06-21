@@ -1,0 +1,19 @@
+{ "name": "fedwiki"
+, "version": "0.0.1a-pre"
+, "main": "fedwiki.js"
+, "private": true
+, "dependencies":
+  { "tako": "*"
+  , "request": "*"
+  , "filed": "*"
+  , "optimist": "*"
+  , "bouncy": "*"
+  }
+, "devDependencies":
+  { "tap": "*"
+  }
+, "scripts":
+  { "test": "./node_modules/.bin/tap t/"
+  , "start": "./bin/cli.js"
+  }
+}
