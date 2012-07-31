@@ -167,6 +167,7 @@ class Controller < Sinatra::Base
   end
 
   get %r{^/([a-z0-9-]+)\.html$} do |name|
+    halt 404 unless farm_page.exists?(name)
     haml :page, :locals => { :page => farm_page.get(name), :page_name => name }
   end
 
@@ -184,6 +185,24 @@ class Controller < Sinatra::Base
     haml :view, :locals => {:pages => pages}
   end
 
+  get '/system/plugins.json' do
+    content_type 'application/json'
+    cross_origin
+    plugins = []
+    path = File.join(APP_ROOT, "client/plugins")
+    pathname = Pathname.new path
+    Dir.glob("#{path}/*/") {|filename| plugins << Pathname.new(filename).relative_path_from(pathname)}
+    JSON.pretty_generate plugins
+  end
+
+  get '/system/sitemap.json' do
+    content_type 'application/json'
+    cross_origin
+    pages = Store.annotated_pages farm_page.directory
+    sitemap = pages.collect {|p| {"slug" => p['name'], "title" => p['title'], "date" => p['updated_at'].to_i*1000}}
+    JSON.pretty_generate sitemap
+  end
+
   get '/recent-changes.json' do
     content_type 'application/json'
     cross_origin
@@ -192,7 +211,7 @@ class Controller < Sinatra::Base
     pages = Store.annotated_pages farm_page.directory
     pages.each do |page|
       dt = Time.now - page['updated_at']
-      bins[(dt/=60)<1?'Minute':(dt/=60)<1?'Hour':(dt/=24)<1?'Day':(dt/=7)<1?'Week':(dt/=4)<1?'Month':(dt/=3)<1?'Season':(dt/=4)<1?'Year':'Forever']<<page
+      bins[(dt/=60)<1?'Minute':(dt/=60)<1?'Hour':(dt/=24)<1?'Day':(dt/=7)<1?'Week':(dt/=4)<1?'Month':(dt/=3)<1?'Season':(dt/=4)<1?'Year':'Forever'] << page
     end
 
     story = []
@@ -325,6 +344,10 @@ class Controller < Sinatra::Base
     else
       RestClient.get "#{site}/favicon.png"
     end
+  end
+
+  not_found do
+    oops 404, "Page not found"
   end
 
 end

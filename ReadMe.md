@@ -26,7 +26,11 @@ First you will want to get caught up with some project history. We've been recor
 
 * http://wardcunningham.github.com
 
-Then you will want to read through the project roadmap. This and a number of other forward looking pages are kept in the project's GitHub wiki:
+Then you may want to read through the end-user how-to documentation which is itself written in a federated wiki:
+
+* http://fed.wiki.org/how-to-wiki.html
+
+Once you know where we are and how we got there, you could peruse the project roadmap. This and a number of other forward looking pages are kept in the project's GitHub wiki:
 
 * [Project Roadmap](https://github.com/WardCunningham/Smallest-Federated-Wiki/wiki)
 * [List of Wiki Pages](https://github.com/WardCunningham/Smallest-Federated-Wiki/wiki/_pages)
@@ -70,12 +74,23 @@ When you have git. Use it to clone the repository:
 
 We have several server implementations that share the same client code.
 Our reference implementation is in Sinatra.
-We're using Ruby 1.9.2 which we manage with rvm:
+We're using Ruby 1.9.2 which we manage with rvm.
+
+To install rvm: 
+
+	curl -L https://get.rvm.io | bash -s stable --ruby
+
+Then run: 
 
 	rvm install 1.9.2
 	rvm use 1.9.2
 
 The software has been known to run trouble-free under version 1.8.5 so long as appropriate gem versions are installed. The latest releases of OSX work better with 1.9.3.
+
+For latest versions of OS X: 
+
+	rvm install 1.9.3 --with-gcc=clang
+	rvm use 1.9.3
 
 The server is a ruby bundle. Get the bundler gem and then use it to get everything else:
 
@@ -94,7 +109,7 @@ Now go to your browser and browse your new wiki:
 Running specs
 =============
 
-The test suite is written using RSpec 2 and utilizes Selenium heavily. You must have a recent version of Firefox installed to run the test suite.
+The acceptance test suite is written using RSpec 2 and utilizes Selenium heavily. You must have a recent version of Firefox installed to run the test suite.
 
 To run an individual spec, run
 
@@ -103,6 +118,11 @@ To run an individual spec, run
 To run all specs, run
 
 	bundle exec rake spec
+
+Running coffeescript tests
+=============
+
+Client-side unit and integration tests are written using mocha. The test runner is an HTML page (runtests.html) which is self-served by the wiki server itself. If your server is running at http:///localhost:9292 then you can run your tests by going to http://localhost:9292/runtests.html. Note that that test runner page does need to be accessed via a server - loading the page in a browser directly from your filesystem will not work correctly.
 
 Looking For Code Bloat
 ======================
