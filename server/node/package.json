@@ -8,6 +8,7 @@
   , "filed": "*"
   , "optimist": "*"
   , "bouncy": "*"
+  , "mkdirp": "*"
   }
 , "devDependencies":
   { "tap": "*"

@@ -8,13 +8,13 @@ var path = require('path')
   , request = require('request')
   , filed = require('filed')
   , es = require('event-stream')
+  , mkdirp = require('mkdirp')
   // local modules
   , settings = require('./lib/settings')
   , pageModule = require('./lib/pageModule')
-  , doAction
   ;
 
-doAction = function (action) {
+var doAction = function (action) {
   // TODO: Actually make this work.
   // Return stream objects instead of callbacks?
   var a =
@@ -66,6 +66,7 @@ module.exports = exports = function (opts) {
   app.router.fifo = true
 
   opts = settings(opts)
+
 
   pageHandler = pageModule(opts)
 
@@ -136,10 +137,12 @@ module.exports = exports = function (opts) {
       return data.toString().replace(/^data:image\/png;base64,/, "")
     })
 
-    req.pipe(strip).pipe(filed(path.join(opts.stat, '/favicon.png'))).on('end', function () {
-      res.end('ok')
-    })
-  }).methods('GET', 'POST')
+    req.pipe(filed(path.join(opts.stat, '/favicon.png'))).pipe(res)
+
+    //req.pipe(strip).pipe(filed(path.join(opts.stat, '/favicon.png'))).on('end', function () {
+    //  res.end('ok')
+    //})
+  })
 
   app.route('/*', function (req, res) {
     filed(path.join(opts.c, req.pathname)).pipe(res)
@@ -148,6 +151,8 @@ module.exports = exports = function (opts) {
   app.httpServer.listen(opts.p)
 
   // console.log(app.router.root.children)
+
+  console.log(opts)
 
   return app
 }

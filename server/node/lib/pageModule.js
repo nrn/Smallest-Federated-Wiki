@@ -27,12 +27,12 @@ function pageModule (opts) {
       }
     }
 
-    path.exists(loc, check(loc, function () {
-      path.exists(defloc, check(defloc, function () {
+    fs.exists(loc, check(loc, function () {
+      fs.exists(defloc, check(defloc, function () {
         fs.readdir(plugindir, function (err, folders) {
           folders.forEach(function (file, idx, whole) {
             var pluginloc = path.join(plugindir, file, 'pages', slug)
-            path.exists(pluginloc, check(pluginloc, function () {
+            fs.exists(pluginloc, check(pluginloc, function () {
               if (idx === (whole.length - 1)) start(loc)
             }))
           })
