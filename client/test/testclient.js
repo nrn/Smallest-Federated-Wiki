@@ -7,7 +7,7 @@
     var cached = require.cache[resolved];
     var res = cached? cached.exports : mod();
     return res;
-}
+};
 
 require.paths = [];
 require.modules = {};
@@ -151,7 +151,14 @@ require.alias = function (from, to) {
         ;
         
         var require_ = function (file) {
-            return require(file, dirname);
+            var requiredModule = require(file, dirname);
+            var cached = require.cache[require.resolve(file, dirname)];
+
+            if (cached.parent === null) {
+                cached.parent = module_;
+            }
+
+            return requiredModule;
         };
         require_.resolve = function (name) {
             return require.resolve(name, dirname);
@@ -159,7 +166,13 @@ require.alias = function (from, to) {
         require_.modules = require.modules;
         require_.define = require.define;
         require_.cache = require.cache;
-        var module_ = { exports : {} };
+        var module_ = {
+            id : filename,
+            filename: filename,
+            exports : {},
+            loaded : false,
+            parent: null
+        };
         
         require.modules[filename] = function () {
             require.cache[filename] = module_;
@@ -172,6 +185,7 @@ require.alias = function (from, to) {
                 filename,
                 process
             );
+            module_.loaded = true;
             return module_.exports;
         };
     };
@@ -508,9 +522,13 @@ require.define("/lib/util.coffee",function(require,module,exports,__dirname,__fi
 });
 
 require.define("/test/util.coffee",function(require,module,exports,__dirname,__filename,process){(function() {
-  var util;
+  var timezoneOffset, util;
 
   util = require('../lib/util.coffee');
+
+  timezoneOffset = function() {
+    return (new Date()).getTimezoneOffset() * 60;
+  };
 
   module.exports = describe('util', function() {
     it('should make random bytes', function() {
@@ -527,13 +545,13 @@ require.define("/test/util.coffee",function(require,module,exports,__dirname,__f
     });
     it('should format unix time', function() {
       var s;
-      s = util.formatTime(1333843344);
-      return expect(s).to.be('5:02 PM<br>7 Apr 2012');
+      s = util.formatTime(1333843344 + timezoneOffset());
+      return expect(s).to.be('12:02 AM<br>8 Apr 2012');
     });
     it('should format javascript time', function() {
       var s;
-      s = util.formatTime(1333843344000);
-      return expect(s).to.be('5:02 PM<br>7 Apr 2012');
+      s = util.formatTime(1333843344000 + timezoneOffset() * 1000);
+      return expect(s).to.be('12:02 AM<br>8 Apr 2012');
     });
     it('should slug a name', function() {
       var s;
@@ -1366,7 +1384,7 @@ require.define("/lib/plugin.coffee",function(require,module,exports,__dirname,__
         _results = [];
         for (i = _i = 0, _ref = localStorage.length; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
           key = localStorage.key(i);
-          a = $('<a class="internal" href="#" />').append(key).data('pageName', key);
+          a = $('<a class="internal" href="#" title="origin"/>').append(JSON.parse(localStorage[key]).title).data('pageName', key);
           _results.push(ul.prepend($('<li />').append(a)));
         }
         return _results;
