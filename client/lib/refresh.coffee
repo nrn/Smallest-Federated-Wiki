@@ -72,15 +72,33 @@ emitHeader = (pageElement, page) ->
           ), " #{page.title}"))
   if (rev = pageElement.attr('id').split('_rev')[1])?
     date = page.journal[page.journal.length-1].date
-    $(pageElement)
-      .append $('<h4 class="revision"/>')
-        .html if date? then util.formatDate(date) else "Revision #{rev}"
-    $(pageElement).addClass 'ghost'
+    $(pageElement).addClass('ghost').append $ """
+      <h2 class="revision">
+        <span>
+          #{if date? then util.formatDate(date) else "Revision #{rev}"}
+        </span>
+      </h2>
+    """
 
 module.exports = refresh = wiki.refresh = ->
   pageElement = $(this)
 
-  buildPage = (data) ->
+
+  [slug, rev] = pageElement.attr('id').split('_rev')
+  pageInformation = {
+    slug: slug
+    rev: rev
+    site: pageElement.data('site')
+    wasServerGenerated: pageElement.attr('data-server-generated') == 'true'
+  }
+
+  buildPage = (data,siteFound) ->
+
+    if siteFound == 'local'
+      pageElement.addClass('local') 
+    else
+      pageElement.data('site', siteFound)
+
     if not data?
       pageElement.find('.item').each (i, each) ->
         item = wiki.getItem($(each))
@@ -128,5 +146,15 @@ module.exports = refresh = wiki.refresh = ->
     initDragging pageElement
     initAddButton pageElement
 
-  pageHandler.get pageElement, buildPage
+  createPage = ->
+    title = $("""a[href="/#{slug}.html"]""").text()
+    title or= slug
+    pageHandler.put $(pageElement), {type: 'create', id: util.randomBytes(8), item: {title}}
+    buildPage( {title} )
+      
+
+  pageHandler.get
+    whenGotten: buildPage
+    whenNotGotten: createPage
+    pageInformation: pageInformation
 

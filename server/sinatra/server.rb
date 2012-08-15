@@ -1,6 +1,7 @@
 require 'rubygems'
 require 'bundler'
 require 'pathname'
+require 'pp'
 Bundler.require
 
 $LOAD_PATH.unshift(File.dirname(__FILE__))
@@ -108,11 +109,6 @@ class Controller < Sinatra::Base
           authenticate!
         end
     end
-  end
-
-  get '/style.css' do
-    content_type 'text/css'
-    sass :style
   end
 
   get '/system/slugs.json' do
@@ -348,6 +344,36 @@ class Controller < Sinatra::Base
 
   not_found do
     oops 404, "Page not found"
+  end
+
+  put '/submit' do
+    content_type 'application/json'
+    bundle = JSON.parse params['bundle']
+    spawn = "#{(rand*1000000).to_i}.#{request.host}"
+    site = request.port == 80 ? spawn : "#{spawn}:#{request.port}"
+    bundle.each do |slug, page|
+      farm_page(spawn).put slug, page
+    end
+    citation = {
+      "type"=> "federatedWiki",
+      "id"=> RandomId.generate,
+      "site"=> site,
+      "slug"=> "recent-changes",
+      "title"=> "Recent Changes",
+      "text"=> bundle.collect{|slug, page| "<li> [[#{page['title']||slug}]]"}.join("\n")
+    }
+    action = {
+      "type"=> "add",
+      "id"=> citation['id'],
+      "date"=> Time.new.to_i*1000,
+      "item"=> citation
+    }
+    slug = 'recent-submissions'
+    page = farm_page.get slug
+    (page['story']||=[]) << citation
+    (page['journal']||=[]) << action
+    farm_page.put slug, page
+    JSON.pretty_generate citation
   end
 
 end

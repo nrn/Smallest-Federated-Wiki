@@ -8,4 +8,7 @@
 /spec/data
 /client/js
 /client/node_modules
+/client/plugins/*/test.js
+/client/chart/
+/client/garden/
 /server/express/node_modules

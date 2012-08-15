@@ -54,14 +54,19 @@ window.plugins.method =
 
       dispatch = (list, allocated, lines, report, done) ->
         color = '#eee'
-        value = comment = null
+        value = comment = hover = null
         hours = ''
         line = lines.shift()
         return done report unless line?
 
         next_dispatch = ->
           list.push +value if value? and ! isNaN +value
-          report.push "<tr style=\"background:#{color};\"><td style=\"width: 20%; text-align: right;\"><b>#{round value}</b><td>#{line}#{annotate comment}"
+          report.push """
+            <tr style="background:#{color};">
+              <td style="width: 20%; text-align: right;" title="#{hover||''}">
+                <b>#{round value}</b>
+              <td>#{line}#{annotate comment}
+            """
           dispatch list, allocated, lines, report, done
 
         apply = (name, list) ->
@@ -71,27 +76,36 @@ window.plugins.method =
           else if name == 'AVG'
             color = '#ddd'
             avg(list)
+          else if name == 'MIN'
+            color = '#ddd'
+            _.min list
+          else if name == 'MAX'
+            color = '#ddd'
+            _.max list
           else
-            color = '#edd'
+            throw new Error "don't know how to #{name}"
 
         try
-          if args = line.match /^(-?[0-9.]+) ([\w \/%()-]+)$/
+          if args = line.match /^([0-9.eE-]+) ([\w \/%(),-]+)$/
             result = hours = +args[1]
             line = args[2]
             output[line] = value = result
-          else if args = line.match /^([A-Z]+) ([\w \/%()-]+)$/
-            [value, list] = [apply(args[1], list), []]
+          else if args = line.match /^([A-Z]+) ([\w \/%(),-]+)$/
+            [value, list, count] = [apply(args[1], list), [], list.length]
+            hover = "#{args[1]} of #{count} numbers\n= #{value}"
             line = args[2]
             if output[line]? or input[line]?
-              if value != (previous = asValue(output[line]||input[line]))
-                comment = "previously #{previous} Δ#{value-previous}"
+              previous = asValue(output[line]||input[line])
+              if Math.abs(change = value/previous-1) > 0.0001
+                comment = "previously #{previous}\nΔ #{round(change*100)}%"
             output[line] = value
           else if args = line.match /^([A-Z]+)$/
-            [value, list] = [apply(args[1], list), []]
-          else if line.match /^[0-9\.-]+$/
+            [value, list, count] = [apply(args[1], list), [], list.length]
+            hover = "#{args[1]} of #{count} numbers\n= #{value}"
+          else if line.match /^[0-9\.eE-]+$/
             value = +line
             line = ''
-          else if line.match /^([\w \/%()-]+)$/
+          else if line.match /^([\w \/%(),-]+)$/
             if output[line]?
               value = output[line]
             else if input[line]?

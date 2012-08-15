@@ -74,9 +74,9 @@
         lines = item.text.split("\n");
         report = [];
         dispatch = function(list, allocated, lines, report, done) {
-          var apply, args, color, comment, hours, line, next_dispatch, previous, result, value, _ref, _ref1;
+          var apply, args, change, color, comment, count, hours, hover, line, next_dispatch, previous, result, value, _ref, _ref1;
           color = '#eee';
-          value = comment = null;
+          value = comment = hover = null;
           hours = '';
           line = lines.shift();
           if (line == null) {
@@ -86,7 +86,7 @@
             if ((value != null) && !isNaN(+value)) {
               list.push(+value);
             }
-            report.push("<tr style=\"background:" + color + ";\"><td style=\"width: 20%; text-align: right;\"><b>" + (round(value)) + "</b><td>" + line + (annotate(comment)));
+            report.push("<tr style=\"background:" + color + ";\">\n  <td style=\"width: 20%; text-align: right;\" title=\"" + (hover || '') + "\">\n    <b>" + (round(value)) + "</b>\n  <td>" + line + (annotate(comment)));
             return dispatch(list, allocated, lines, report, done);
           };
           apply = function(name, list) {
@@ -96,30 +96,39 @@
             } else if (name === 'AVG') {
               color = '#ddd';
               return avg(list);
+            } else if (name === 'MIN') {
+              color = '#ddd';
+              return _.min(list);
+            } else if (name === 'MAX') {
+              color = '#ddd';
+              return _.max(list);
             } else {
-              return color = '#edd';
+              throw new Error("don't know how to " + name);
             }
           };
           try {
-            if (args = line.match(/^(-?[0-9.]+) ([\w \/%()-]+)$/)) {
+            if (args = line.match(/^([0-9.eE-]+) ([\w \/%(),-]+)$/)) {
               result = hours = +args[1];
               line = args[2];
               output[line] = value = result;
-            } else if (args = line.match(/^([A-Z]+) ([\w \/%()-]+)$/)) {
-              _ref = [apply(args[1], list), []], value = _ref[0], list = _ref[1];
+            } else if (args = line.match(/^([A-Z]+) ([\w \/%(),-]+)$/)) {
+              _ref = [apply(args[1], list), [], list.length], value = _ref[0], list = _ref[1], count = _ref[2];
+              hover = "" + args[1] + " of " + count + " numbers\n= " + value;
               line = args[2];
               if ((output[line] != null) || (input[line] != null)) {
-                if (value !== (previous = asValue(output[line] || input[line]))) {
-                  comment = "previously " + previous + " Δ" + (value - previous);
+                previous = asValue(output[line] || input[line]);
+                if (Math.abs(change = value / previous - 1) > 0.0001) {
+                  comment = "previously " + previous + "\nΔ " + (round(change * 100)) + "%";
                 }
               }
               output[line] = value;
             } else if (args = line.match(/^([A-Z]+)$/)) {
-              _ref1 = [apply(args[1], list), []], value = _ref1[0], list = _ref1[1];
-            } else if (line.match(/^[0-9\.-]+$/)) {
+              _ref1 = [apply(args[1], list), [], list.length], value = _ref1[0], list = _ref1[1], count = _ref1[2];
+              hover = "" + args[1] + " of " + count + " numbers\n= " + value;
+            } else if (line.match(/^[0-9\.eE-]+$/)) {
               value = +line;
               line = '';
-            } else if (line.match(/^([\w \/%()-]+)$/)) {
+            } else if (line.match(/^([\w \/%(),-]+)$/)) {
               if (output[line] != null) {
                 value = output[line];
               } else if (input[line] != null) {
