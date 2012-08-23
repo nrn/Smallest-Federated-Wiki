@@ -12,10 +12,15 @@ var path = require('path')
   // local modules
   , settings = require('./lib/settings')
   , pageModule = require('./lib/pageModule')
+  , render = require('./render')
   ;
 
 module.exports = exports = function (opts) {
   var app = http.createServer(handler)
+
+  opts = settings(opts)
+
+  var pageHandler = pageModule(opts)
 
     // Regex routes, emit name and need to be listend to below.
   var routes =
@@ -30,21 +35,47 @@ module.exports = exports = function (opts) {
     , 'remoteFalg': /^\/remote\/([a-zA-Z0-9:\.-]+)\/favicon.png$/
     // Other routes will trigger their function
     // Unimlamented routes
-    , '/logout' : function (req, res) { res.statusCode = 200;res.end('wtf')}
-    , '/login' : notyet
-    , '/login/openid/complete' : notyet
-    , '/system/slugs.json' : notyet
-    , '/favicon.png' : notyet
-    , '/random.png' : notyet
-    , '/' : index
-    , '/system/plugins.json': notyet
-    , '/recent-changes.json': notyet
-    , '/submit': notyet
+    , '' : index
+    , 'logout' : notyet
+    , 'login' : notyet
+    , 'login/openid/complete' : notyet
+    , 'system/slugs.json' : notyet
+    , 'favicon.png' : notyet
+    , 'random.png' : notyet
+    , 'system/plugins.json': notyet
+    , 'recent-changes.json': notyet
+    , 'submit': notyet
     }
 
-  function notyet () {}
-
   var router = ramrod(routes)
+
+  router.on('*', ecstatic(opts.c))
+
+  router.on('full', function (req, res) {
+    res.statusCode = 200
+    res.end(render([{ page: opts.s }]))
+  })
+
+  router.on('json', function (req, res) {
+    console.log(req.url)
+    pageHandler('welcome-visitors').pipe(res)
+  })
+
+  router.on('revd', notyet)
+  router.on('factory', notyet)
+  router.on('data', notyet)
+  router.on('html', notyet)
+  router.on('action', notyet)
+  router.on('remotePage', notyet)
+  router.on('remoteFalg', notyet)
+
+
+  function notyet (req, res) {
+    console.log('You called a route that is not yet implemented')
+    res.statusCode = 404
+    res.end('not found')
+  }
+
 
   function handler (req, res) {
     router.dispatch(req, res)
@@ -53,21 +84,9 @@ module.exports = exports = function (opts) {
   function index (req, res) {
     res.statusCode = 302
     res.setHeader('location', '/view/' + opts.s)
-    res.end()
+    res.end('test')
   }
 
-  opts = settings(opts)
-
-  pageHandler = pageModule(opts)
-
-  router.add('/test', 'test')
-  router.on('test', function (req, res) {
-    console.log('hmm')
-    res.statusCode = 200
-    res.end('wtf')
-  })
-
-  // router.on('*', ecstatic(opts.c))
 
   console.log(opts)
   app.listen(opts.p)

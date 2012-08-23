@@ -3,7 +3,9 @@
 , "main": "fedwiki.js"
 , "private": true
 , "dependencies":
-  { "tako": "*"
+  { "ramrod": "*"
+  , "ecstatic": "*"
+  , "flates": "*"
   , "request": "*"
   , "filed": "*"
   , "optimist": "*"
