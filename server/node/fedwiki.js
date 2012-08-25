@@ -9,7 +9,11 @@ var path = require('path')
   , request = require('request')
   , mkdirp = require('mkdirp')
   , ecstatic = require('ecstatic')
+  , glob = require('glob')
+  , es = require('event-stream')
+  , JSONStream = require('JSONStream')
   // local modules
+  , setup = require('./setup')
   , settings = require('./lib/settings')
   , pageModule = require('./lib/pageModule')
   , render = require('./render')
@@ -22,7 +26,7 @@ module.exports = exports = function (opts) {
 
   var pageHandler = pageModule(opts)
 
-    // Regex routes, emit name and need to be listend to below.
+  // Regex routes, emit name and need to be listend to below.
   var routes =
     { 'full': /^((\/[a-zA-Z0-9:.-]+\/[a-z0-9-]+)+)\/?$/
     , 'revd': /^((\/[a-zA-Z0-9:.-]+\/[a-z0-9-]+(_rev\d+)?)+)$/
@@ -34,8 +38,7 @@ module.exports = exports = function (opts) {
     , 'remotePage': /^\/remote\/([a-zA-Z0-9:\.-]+)\/([a-z0-9-]+)\.json$/
     , 'remoteFalg': /^\/remote\/([a-zA-Z0-9:\.-]+)\/favicon.png$/
     // Other routes will trigger their function
-    // Unimlamented routes
-    , '' : index
+    , '' : redirect('/view/' + opts.s)
     , 'logout' : notyet
     , 'login' : notyet
     , 'login/openid/complete' : notyet
@@ -49,11 +52,32 @@ module.exports = exports = function (opts) {
 
   var router = ramrod(routes)
 
+  router.on('before', setup)
+
   router.on('*', ecstatic(opts.c))
 
   router.on('full', function (req, res) {
     res.statusCode = 200
     res.end(render([{ page: opts.s }]))
+  })
+
+  router.on('factory', function (req, res) {
+    res.statusCode = 200
+    res.setHeader('Content-Type', 'application/javascript')
+    function cb (e, catalog) {
+      if (e) throw e
+      res.write('window.catalog = ' + JSON.stringify(catalog) + ';')
+      fs.createReadStream(opts.c + '/plugins/meta-factory.js').pipe(res)
+    }
+    glob(opts.c + '/**/factory.json', function (e, files) {
+      if (e) return cb(e)
+      files = files.map(function (file) {
+        return fs.createReadStream(file).pipe(
+          JSONStream.parse(false).on('root', function (el) { this.emit('data', el) })
+        )
+      })
+      es.concat.apply(null, files).pipe(es.writeArray(cb))
+    })
   })
 
   router.on('json', function (req, res) {
@@ -62,7 +86,6 @@ module.exports = exports = function (opts) {
   })
 
   router.on('revd', notyet)
-  router.on('factory', notyet)
   router.on('data', notyet)
   router.on('html', notyet)
   router.on('action', notyet)
@@ -81,12 +104,13 @@ module.exports = exports = function (opts) {
     router.dispatch(req, res)
   }
 
-  function index (req, res) {
-    res.statusCode = 302
-    res.setHeader('location', '/view/' + opts.s)
-    res.end('test')
+  function redirect (loc) {
+    return function (req, res) {
+      res.statusCode = 302
+      res.setHeader('location', loc)
+      res.end()
+    }
   }
-
 
   console.log(opts)
   app.listen(opts.p)

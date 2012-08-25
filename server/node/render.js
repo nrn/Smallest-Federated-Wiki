@@ -28,26 +28,26 @@ function build (pages, loginStatus) {
         pages.map(function (page) {
           var obj = { class:'page', id: page.page}
           if (page.origin) obj['data-site'] = page.origin
-          f.div(obj)
+          return f.div(obj)
         }).join('')
+      ) +
+      f.footer({ class: loginStatus },
+        f.form({ action: '/login', method: 'post' },
+          'OpenID:' +
+          f.input({ name: 'identifier', type: 'text' }) +
+          f.input({ type: 'submit', value: loginStatus }) +
+          'or use:' +
+          f.span({ class: 'provider' },
+            f.input(
+              { 'data-provider': 'https://www.google.com/accounts/o8/id'
+              , title: 'google'
+              , type: 'button'
+              , value: 'G'
+              }
+            )
+          )
+        )
       )
-    )
-  )
-  f.footer({ class: loginStatus },
-    f.form({ action: '/login', method: 'post' },
-      'OpenID:' +
-      f.input({ name: 'identifier', type: 'text' }) +
-      f.input({ type: 'submit', value: loginStatus }) +
-      'or use:' +
-      f.span({ class: 'provider' },
-        f.input(
-          { 'data-provider': 'https://www.google.com/accounts/o8/id'
-          , title: 'google'
-          , type: 'button'
-          , value: 'G'
-          })
-      )
-
     )
   )
 }

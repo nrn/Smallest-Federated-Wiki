@@ -133,10 +133,9 @@ test('Routes', function (t) {
         }
       ]
 
-    actions.forEach(function (s) {
-      request(actOpts(s.action, s.loc), check(/ok/i, s.loc))
-    })
-
+  //  actions.forEach(function (s) {
+  //    request(actOpts(s.action, s.loc), check(/ok/i, s.loc))
+  //  })
   })
 
   t.plan(tests)

@@ -7,10 +7,12 @@
   , "ecstatic": "*"
   , "flates": "*"
   , "request": "*"
-  , "filed": "*"
+  , "glob": "*"
   , "optimist": "*"
   , "bouncy": "*"
   , "mkdirp": "*"
+  , "event-stream": "*"
+  , "JSONStream": "*"
   }
 , "devDependencies":
   { "tap": "*"
