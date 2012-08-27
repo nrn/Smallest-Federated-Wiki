@@ -5,7 +5,7 @@ var path = require('path')
 
 function pageModule (opts) {
 
-  function pageHandler (slug, cb) {
+  function pageHandler (slug) {
     var res
       , handler = {}
       , loc = path.join(opts.db, slug)
@@ -16,8 +16,7 @@ function pageModule (opts) {
     function start (foundLoc) {
       if (started) return
       started = true
-      if (cb) filed(foundLoc, cb)
-      else filed(foundLoc).pipe(res)
+      filed(foundLoc).pipe(res)
     }
 
     function check (loc, doh) {
@@ -27,12 +26,12 @@ function pageModule (opts) {
       }
     }
 
-    path.exists(loc, check(loc, function () {
-      path.exists(defloc, check(defloc, function () {
-        path.readdir(plugindir, function (err, folders) {
+    fs.exists(loc, check(loc, function () {
+      fs.exists(defloc, check(defloc, function () {
+        fs.readdir(plugindir, function (err, folders) {
           folders.forEach(function (file, idx, whole) {
             var pluginloc = path.join(plugindir, file, 'pages', slug)
-            path.exists(pluginloc, check(pluginloc, function () {
+            fs.exists(pluginloc, check(pluginloc, function () {
               if (idx === (whole.length - 1)) start(loc)
             }))
           })
