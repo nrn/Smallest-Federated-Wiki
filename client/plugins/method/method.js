@@ -4,7 +4,7 @@
   window.plugins.method = {
     emit: function(div, item) {},
     bind: function(div, item) {
-      var annotate, asValue, avg, calculate, candidates, elem, input, output, round, sum, _i, _len;
+      var annotate, asValue, attach, avg, calculate, candidates, elem, input, lookup, output, polynomial, round, sum, _i, _len;
       input = {};
       output = {};
       asValue = function(obj) {
@@ -43,13 +43,57 @@
       div.mousemove(function(e) {
         return $(div).triggerHandler('thumb', $(e.target).text());
       });
+      attach = function(search) {
+        var source, _j, _len1, _ref;
+        _ref = wiki.getDataNodes(div);
+        for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+          elem = _ref[_j];
+          if ((source = $(elem).data('item')).text.indexOf(search) >= 0) {
+            return source.data;
+          }
+        }
+        throw new Error("can't find dataset with caption " + search);
+      };
       sum = function(v) {
         return _.reduce(v, function(s, n) {
           return s += n;
-        });
+        }, 0);
       };
       avg = function(v) {
         return sum(v) / v.length;
+      };
+      lookup = function(v) {
+        var row, table;
+        table = attach('Tier3ExposurePercentages');
+        row = _.find(table, function(row) {
+          return asValue(row.Exposure) === v[0] && asValue(row.Raw) === v[1];
+        });
+        if (row == null) {
+          throw new Error("can't find exposure " + v[0] + " and raw " + v[1]);
+        }
+        return asValue(row.Percentage);
+      };
+      polynomial = function(v, subtype) {
+        var result, row, table;
+        table = attach('Tier3Polynomials');
+        row = _.find(table, function(row) {
+          return row.SubType === subtype && asValue(row.Min) <= v && asValue(row.Max) > v;
+        });
+        if (row == null) {
+          throw new Error("can't find applicable polynomial for " + v + " in '" + subtype + "'");
+        }
+        result = asValue(row.C0);
+        result += asValue(row.C1) * v;
+        result += asValue(row.C2) * Math.pow(v, 2);
+        result += asValue(row.C3) * Math.pow(v, 3);
+        result += asValue(row.C4) * Math.pow(v, 4);
+        result += asValue(row.C5) * Math.pow(v, 5);
+        result += asValue(row.C6) * Math.pow(v, 6);
+        if (asValue(row['One minus'])) {
+          return 1 - result;
+        } else {
+          return result;
+        }
       };
       round = function(n) {
         if (n == null) {
@@ -83,42 +127,60 @@
             return done(report);
           }
           next_dispatch = function() {
+            var long;
             if ((value != null) && !isNaN(+value)) {
               list.push(+value);
             }
-            report.push("<tr style=\"background:" + color + ";\">\n  <td style=\"width: 20%; text-align: right;\" title=\"" + (hover || '') + "\">\n    <b>" + (round(value)) + "</b>\n  <td>" + line + (annotate(comment)));
+            long = '';
+            if (line.length > 40) {
+              long = line;
+              line = "" + (line.substr(0, 20)) + " ... " + (line.substr(-15));
+            }
+            report.push("<tr style=\"background:" + color + ";\">\n  <td style=\"width: 20%; text-align: right;\" title=\"" + (hover || '') + "\">\n    <b>" + (round(value)) + "</b>\n  <td title=\"" + long + "\">" + line + (annotate(comment)));
             return dispatch(list, allocated, lines, report, done);
           };
-          apply = function(name, list) {
-            if (name === 'SUM') {
-              color = '#ddd';
-              return sum(list);
-            } else if (name === 'AVG') {
-              color = '#ddd';
-              return avg(list);
-            } else if (name === 'MIN') {
-              color = '#ddd';
-              return _.min(list);
-            } else if (name === 'MAX') {
-              color = '#ddd';
-              return _.max(list);
-            } else {
-              throw new Error("don't know how to " + name);
+          apply = function(name, list, label) {
+            color = '#ddd';
+            switch (name) {
+              case 'SUM':
+                return sum(list);
+              case 'AVG':
+              case 'AVERAGE':
+                return avg(list);
+              case 'MIN':
+              case 'MINIMUM':
+                return _.min(list);
+              case 'MAX':
+              case 'MAXIMUM':
+                return _.max(list);
+              case 'FIRST':
+                return list[0];
+              case 'PRODUCT':
+                return _.reduce(list, function(p, n) {
+                  return p *= n;
+                });
+              case 'LOOKUP':
+                return lookup(list);
+              case 'POLYNOMIAL':
+                return polynomial(list[0], label);
+              default:
+                throw new Error("don't know how to " + name);
             }
           };
           try {
-            if (args = line.match(/^([0-9.eE-]+) ([\w \/%(),-]+)$/)) {
+            if (args = line.match(/^([0-9.eE-]+) +([\w \/%(){},&-]+)$/)) {
               result = hours = +args[1];
               line = args[2];
               output[line] = value = result;
-            } else if (args = line.match(/^([A-Z]+) ([\w \/%(),-]+)$/)) {
-              _ref = [apply(args[1], list), [], list.length], value = _ref[0], list = _ref[1], count = _ref[2];
+            } else if (args = line.match(/^([A-Z]+) +([\w \/%(){},&-]+)$/)) {
+              _ref = [apply(args[1], list, args[2]), [], list.length], value = _ref[0], list = _ref[1], count = _ref[2];
               hover = "" + args[1] + " of " + count + " numbers\n= " + value;
               line = args[2];
-              if ((output[line] != null) || (input[line] != null)) {
+              if (((output[line] != null) || (input[line] != null)) && !item.silent) {
                 previous = asValue(output[line] || input[line]);
                 if (Math.abs(change = value / previous - 1) > 0.0001) {
                   comment = "previously " + previous + "\nΔ " + (round(change * 100)) + "%";
+                  wiki.log('method', args[0], value, '!=', previous);
                 }
               }
               output[line] = value;
@@ -128,11 +190,11 @@
             } else if (line.match(/^[0-9\.eE-]+$/)) {
               value = +line;
               line = '';
-            } else if (line.match(/^([\w \/%(),-]+)$/)) {
-              if (output[line] != null) {
-                value = output[line];
-              } else if (input[line] != null) {
-                value = asValue(input[line]);
+            } else if (args = line.match(/^ *([\w \/%(){},&-]+)$/)) {
+              if (output[args[1]] != null) {
+                value = output[args[1]];
+              } else if (input[args[1]] != null) {
+                value = asValue(input[args[1]]);
               } else {
                 color = '#edd';
                 comment = "can't find value of '" + line + "'";

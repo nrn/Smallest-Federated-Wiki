@@ -172,7 +172,7 @@ class Controller < Sinatra::Base
     pages = []
     elements.shift
     while (site = elements.shift) && (id = elements.shift)
-      if site == 'view' || site == 'my'
+      if site == 'view'
         pages << {:id => id}
       else
         pages << {:id => id, :site => site}
@@ -202,22 +202,26 @@ class Controller < Sinatra::Base
   get '/recent-changes.json' do
     content_type 'application/json'
     cross_origin
-    bins = Hash.new {|hash, key| hash[key] = Array.new}
 
     pages = Store.annotated_pages farm_page.directory
-    pages.each do |page|
+    bins = pages.group_by do |page|
       dt = Time.now - page['updated_at']
-      bins[(dt/=60)<1?'Minute':(dt/=60)<1?'Hour':(dt/=24)<1?'Day':(dt/=7)<1?'Week':(dt/=4)<1?'Month':(dt/=3)<1?'Season':(dt/=4)<1?'Year':'Forever'] << page
+      (dt/=60)<1?'Minute':(dt/=60)<1?'Hour':(dt/=24)<1?'Day':(dt/=7)<1?'Week':(dt/=4)<1?'Month':(dt/=3)<1?'Season':(dt/=4)<1?'Year':'Forever'
     end
 
     story = []
     ['Minute', 'Hour', 'Day', 'Week', 'Month', 'Season', 'Year'].each do |key|
-      next unless bins[key].length>0
+      next unless bins.has_key? key
       story << {'type' => 'paragraph', 'text' => "<h3>Within a #{key}</h3>", 'id' => RandomId.generate}
       bins[key].each do |page|
         next if page['story'].empty?
+        next unless page['journal'] && page['journal'].length > 0
+        action = page['journal'].last
+        text = "Last change was #{action['type']}"
+        text << " #{action['item']['type']}" if action['item']
+        text << "<br>#{action['item']['text']}" if action['item'] && action['item']['text']
         site = "#{request.host}#{request.port==80 ? '' : ':'+request.port.to_s}"
-        story << {'type' => 'federatedWiki', 'site' => site, 'slug' => page['name'], 'title' => page['title'], 'text' => "", 'id' => RandomId.generate}
+        story << {'type' => 'reference', 'site' => site, 'slug' => page['name'], 'title' => page['title'], 'text' => text, 'id' => RandomId.generate}
       end
     end
     page = {'title' => 'Recent Changes', 'story' => story}
@@ -253,7 +257,7 @@ class Controller < Sinatra::Base
   #       page = farm.get(slug)
   #       next if page['story'].length == 0
   #       site = "#{site}#{request.port==80 ? '' : ':'+request.port.to_s}"
-  #       story << {'type' => 'federatedWiki', 'site' => site, 'slug' => slug, 'title' => page['title'], 'text' => "", 'id' => RandomId.generate}
+  #       story << {'type' => 'reference', 'site' => site, 'slug' => slug, 'title' => page['title'], 'text' => "", 'id' => RandomId.generate}
   #     end
   #   end
   #   page = {'title' => 'Recent Changes', 'story' => story}
@@ -355,7 +359,7 @@ class Controller < Sinatra::Base
       farm_page(spawn).put slug, page
     end
     citation = {
-      "type"=> "federatedWiki",
+      "type"=> "reference",
       "id"=> RandomId.generate,
       "site"=> site,
       "slug"=> "recent-changes",

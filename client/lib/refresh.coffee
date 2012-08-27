@@ -2,6 +2,7 @@ util = require('./util.coffee')
 pageHandler = require('./pageHandler.coffee')
 plugin = require('./plugin.coffee')
 state = require('./state.coffee')
+neighborhood = require('./neighborhood.coffee')
 
 handleDragging = (evt, ui) ->
   itemElement = ui.item
@@ -16,10 +17,18 @@ handleDragging = (evt, ui) ->
   moveFromPage = not moveWithinPage and equals(thisPageElement, sourcePageElement)
   moveToPage = not moveWithinPage and equals(thisPageElement, destinationPageElement)
 
+  if moveFromPage
+    if sourcePageElement.hasClass('ghost') or
+      sourcePageElement.attr('id') == destinationPageElement.attr('id')
+        # stem the damage, better ideas here: 
+        # http://stackoverflow.com/questions/3916089/jquery-ui-sortables-connect-lists-copy-items
+        return
+
   action = if moveWithinPage
     order = $(this).children().map((_, value) -> $(value).attr('data-id')).get()
     {type: 'move', order: order}
   else if moveFromPage
+    wiki.log 'drag from', sourcePageElement.find('h1').text()
     {type: 'remove'}
   else if moveToPage
     itemElement.data 'pageElement', thisPageElement
@@ -54,7 +63,7 @@ createFactory = (pageElement) ->
 
 emitHeader = (pageElement, page) ->
   site = $(pageElement).data('site')
-  if site?
+  if site? and site != 'local' and site != 'origin' and site != 'view'
     $(pageElement)
       .append "<h1><a href=\"//#{site}\"><img src = \"/remote/#{site}/favicon.png\" height = \"32px\"></a> #{page.title}</h1>"
   else
@@ -72,7 +81,7 @@ emitHeader = (pageElement, page) ->
           ), " #{page.title}"))
   if (rev = pageElement.attr('id').split('_rev')[1])?
     date = page.journal[page.journal.length-1].date
-    $(pageElement).addClass('ghost').append $ """
+    $(pageElement).addClass('ghost').data('rev',rev).append $ """
       <h2 class="revision">
         <span>
           #{if date? then util.formatDate(date) else "Revision #{rev}"}
@@ -110,13 +119,13 @@ module.exports = refresh = wiki.refresh = ->
       slug = $(pageElement).attr('id')
       site = $(pageElement).data('site')
 
-      context = ['origin']
+      context = ['view']
       context.push site if site?
       addContext = (site) -> context.push site if site? and not _.include context, site
       addContext action.site for action in page.journal.slice(0).reverse()
       wiki.resolutionContext = context
 
-      wiki.log 'build', slug, 'site', site, 'context', context.join ' => '
+      wiki.log 'buildPage', slug, 'site', site, 'context', context.join ' => '
       emitHeader pageElement, page
 
       [storyElement, journalElement, footerElement] = ['story', 'journal', 'footer'].map (className) ->
@@ -147,14 +156,27 @@ module.exports = refresh = wiki.refresh = ->
     initAddButton pageElement
 
   createPage = ->
-    title = $("""a[href="/#{slug}.html"]""").text()
+    title = $("""a[href="/#{slug}.html"]:last""").text()
     title or= slug
     pageHandler.put $(pageElement), {type: 'create', id: util.randomBytes(8), item: {title}}
     buildPage( {title} )
+
+  registerNeighbors = (data, site) ->
+    if _.include ['local', 'origin', 'view', null, undefined], site
+      neighborhood.registerNeighbor location.host
+    else
+      neighborhood.registerNeighbor site
+    for item in (data.story || [])
+      neighborhood.registerNeighbor item.site if item.site?
+    for action in (data.journal || [])
+      neighborhood.registerNeighbor action.site if action.site?
       
+  whenGotten = (data,siteFound) ->
+    buildPage( data, siteFound )
+    registerNeighbors( data, siteFound )
 
   pageHandler.get
-    whenGotten: buildPage
+    whenGotten: whenGotten
     whenNotGotten: createPage
     pageInformation: pageInformation
 

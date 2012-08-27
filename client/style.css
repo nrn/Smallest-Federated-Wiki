@@ -40,6 +40,23 @@ footer {
   font-size: 80%;
   z-index: 1000;
   color: #ccdcd2; }
+ 
+footer form {
+  display: inline;
+}
+
+.neighbor {
+  float: right;
+  padding-left: 8px;
+  width: 16px;
+}
+
+img.remote,
+.neighbor img {
+  width: 16px;
+  height: 16px;
+  background-color: #cccccc;
+}
 
 header {
   top: 0; }
@@ -151,7 +168,7 @@ footer {
   color: gray;
   font-size: 70%; }
 
-.federatedWiki .cite {
+.federatedWiki .reference {
   margin-top: 0;
   color: gray;
   font-size: 70%; }

@@ -44,12 +44,6 @@ $ ->
   wiki.log = (things...) ->
     console.log things if console?.log?
 
-  wiki.dump = ->
-    for p in $('.page')
-      wiki.log '.page', p
-      wiki.log '.item', i, 'data-item', $(i).data('item') for i in $(p).find('.item')
-    null
-
   wiki.resolutionContext = []
   resolveFrom = wiki.resolveFrom = (addition, callback) ->
     wiki.resolutionContext.push addition
@@ -81,7 +75,6 @@ $ ->
         .data("slug", pageElement.attr('id'))
 
   useLocalStorage = wiki.useLocalStorage = ->
-    wiki.log 'useLocalStorage', $(".login").length > 0
     $(".login").length > 0
 
   createTextElement = (pageElement, beforeElement, initialText) ->
@@ -175,10 +168,10 @@ $ ->
       who = $('.chart,.data,.calculator').toArray().reverse()
       $(who)
 
-  doInternalLink = wiki.doInternalLink = (name, page) ->
+  doInternalLink = wiki.doInternalLink = (name, page, site=null) ->
     name = util.asSlug(name)
     $(page).nextAll().remove() if page?
-    createPage(name)
+    createPage(name,site)
       .appendTo($('.main'))
       .each refresh
     active.set($('.page').last())
@@ -200,7 +193,7 @@ $ ->
 
 
   createPage = wiki.createPage = (name, loc) ->
-    if loc and (loc isnt ('view' or 'my'))
+    if loc and loc isnt 'view'
       $("<div/>").attr('id', name).attr('data-site', loc).addClass("page")
     else
       $("<div/>").attr('id', name).addClass("page")
@@ -218,7 +211,7 @@ $ ->
   finishClick = (e, name) ->
     e.preventDefault()
     page = $(e.target).parents('.page') unless e.shiftKey
-    doInternalLink name, page
+    doInternalLink name, page, $(e.target).data('site')
 
   $('.main')
     .delegate '.show-page-source', 'click', (e) ->
@@ -240,24 +233,27 @@ $ ->
       pageHandler.context = [$(e.target).data('site')]
       finishClick e, name
 
+    .delegate '.revision', 'dblclick', (e) ->
+      e.preventDefault()
+      $page = $(this).parents('.page')
+      rev = $page.data('rev')
+      action = $page.data('data').journal[rev]
+      json = JSON.stringify(action, null, 2)
+      wiki.dialog "Revision #{rev}, #{action.type} action", $('<pre/>').text(json)
+
     .delegate '.action', 'click', (e) ->
       e.preventDefault()
-      element = $(e.target)
-      if e.shiftKey
-        return wiki.dialog "#{element.data('action').type} action", $('<pre/>').text(JSON.stringify(element.data('action'), null, 2))
-      if element.is('.fork')
+      $action = $(e.target)
+      if $action.is('.fork')
         name = $(e.target).data('slug')
-        pageHandler.context = [$(e.target).data('site')]
+        pageHandler.context = [$action.data('site')]
         finishClick e, name
       else
-        journalEntryIndex = $(this).parent().children().index(element)
-        data = $(this).parent().parent().data('data')
-        titleUrl = util.asSlug(data.title)
-        revUrl = "#{titleUrl}_rev#{journalEntryIndex}"
-        e.preventDefault()
-        page = $(e.target).parents('.page') unless e.shiftKey
-        $(page).nextAll().remove() if page?
-        createPage(revUrl)
+        $page = $(this).parents('.page')
+        slug = util.asSlug($page.data('data').title)
+        rev = $(this).parent().children().index($action)
+        $page.nextAll().remove() unless e.shiftKey
+        createPage("#{slug}_rev#{rev}", $page.data('site'))
           .appendTo($('.main'))
           .each refresh
         active.set($('.page').last())
