@@ -2,6 +2,7 @@ var path = require('path')
   , fs = require('fs')
   // deps
   , filed = require('filed')
+  , glob = require('glob')
 
 function pageModule (opts) {
 

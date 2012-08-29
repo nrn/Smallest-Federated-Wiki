@@ -10,26 +10,22 @@ var qs = require('querystring')
 
 test('Routes', function (t) {
   var servers =
-      [ { name: 'tako'
+      [ { name: 'node'
         , url: 'http://localhost:7357'
-        , server: server({p: 7357, d: '/tmp/fedwiki/tako'})
+        , server: server({p: 7357, d: '/tmp/fedwiki/node'})
         }
       , { name: 'express'
         , url: 'http://localhost:7358'
         , server: serverE({p: 7358, d: '/tmp/fedwiki/express'})
         }
       ]
-    // this variable is incremented for each test that is added 
+    // this variable is incremented for each test that is added
     , tests = 0
 
   servers.forEach(function (info) {
     var url = info.url
       , n = info.name + ': '
       , loc = '/'
-      , action = {}
-      , simple = []
-      , actions = []
-      ;
 
     function check (reg, url) {
       tests += 2
@@ -43,7 +39,7 @@ test('Routes', function (t) {
     // Simple tests that check for a status code 200 at a path, and makes sure
     // that the regex matches in the body.  Tests are labled with the server
     // name, path, and which test failed.
-    simple =
+    var simple =
       [ { loc: '/',  reg: /welcome-visitors/ }
       , { loc: '/view/welcome-visitors', reg: /welcome-visitors/ }
       , { loc: '/view/welcome-visitors/view/indie-web-camp', reg: /welcome-visitors/ }
@@ -89,7 +85,7 @@ test('Routes', function (t) {
              }
     }
 
-    actions =
+    var actions =
       [ { loc: '/page/blah-blah/action'
         , action:
           { type: 'create'
