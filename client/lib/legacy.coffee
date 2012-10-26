@@ -5,6 +5,7 @@ plugin = require('./plugin.coffee')
 state = require('./state.coffee')
 active = require('./active.coffee')
 refresh = require('./refresh.coffee')
+require ('./dom.coffee')
 
 resolveLinks = wiki.resolveLinks = util.resolveLinks
 
@@ -57,7 +58,7 @@ $ ->
     prev = journalElement.find(".edit[data-id=#{action.id || 0}]") if action.type == 'edit'
     actionTitle = action.type
     actionTitle += " #{util.formatElapsedTime(action.date)}" if action.date?
-    actionElement = $("<a href=\"\#\" /> ").addClass("action").addClass(action.type)
+    actionElement = $("""<a href="#" /> """).addClass("action").addClass(action.type)
       .text(util.symbols[action.type])
       .attr('title',actionTitle)
       .attr('data-id', action.id || "0")
@@ -171,7 +172,7 @@ $ ->
   doInternalLink = wiki.doInternalLink = (name, page, site=null) ->
     name = util.asSlug(name)
     $(page).nextAll().remove() if page?
-    createPage(name,site)
+    wiki.createPage(name,site)
       .appendTo($('.main'))
       .each refresh
     active.set($('.page').last())
@@ -189,15 +190,6 @@ $ ->
       if 0 <= newIndex < pages.length
         active.set(pages.eq(newIndex))
 
-# FUNCTIONS sensing extant and desired page configurations
-
-
-  createPage = wiki.createPage = (name, loc) ->
-    if loc and loc isnt 'view'
-      $("<div/>").attr('id', name).attr('data-site', loc).addClass("page")
-    else
-      $("<div/>").attr('id', name).addClass("page")
-
 # HANDLERS for jQuery events
 
   $(window).on 'popstate', state.show
@@ -205,13 +197,23 @@ $ ->
   $(document)
     .ajaxError (event, request, settings) ->
       wiki.log 'ajax error', event, request, settings
+      return if request.status == 0
       msg = "<li class='error'>Error on #{settings.url}: #{request.responseText}</li>"
       $('.main').prepend msg unless request.status == 404
+
+  getTemplate = (slug, done) ->
+    return done(null) unless slug
+    wiki.log 'getTemplate', slug
+    pageHandler.get
+      whenGotten: (data,siteFound) -> done(data.story)
+      whenNotGotten: -> done(null)
+      pageInformation: {slug: slug}
 
   finishClick = (e, name) ->
     e.preventDefault()
     page = $(e.target).parents('.page') unless e.shiftKey
     doInternalLink name, page, $(e.target).data('site')
+    return false
 
   $('.main')
     .delegate '.show-page-source', 'click', (e) ->
@@ -253,7 +255,7 @@ $ ->
         slug = util.asSlug($page.data('data').title)
         rev = $(this).parent().children().index($action)
         $page.nextAll().remove() unless e.shiftKey
-        createPage("#{slug}_rev#{rev}", $page.data('site'))
+        wiki.createPage("#{slug}_rev#{rev}", $page.data('site'))
           .appendTo($('.main'))
           .each refresh
         active.set($('.page').last())
@@ -266,10 +268,31 @@ $ ->
     .delegate '.action', 'hover', ->
       id = $(this).attr('data-id')
       $("[data-id=#{id}]").toggleClass('target')
+      $('.main').trigger('rev')
 
     .delegate '.item', 'hover', ->
       id = $(this).attr('data-id')
       $(".action[data-id=#{id}]").toggleClass('target')
+
+    .delegate 'button.create', 'click', (e) ->
+      getTemplate $(e.target).data('slug'), (story) ->
+        $page = $(e.target).parents('.page:first')
+        $page.removeClass 'ghost'
+        page = $page.data('data')
+        page.story = story||[]
+        pageHandler.put $page, {type: 'create', id: page.id, item: {title:page.title, story: story||undefined}}
+        wiki.buildPage page, null, $page.empty()
+
+    .delegate '.ghost', 'rev', (e) ->
+      wiki.log 'rev', e
+      $page = $(e.target).parents('.page:first')
+      $item = $page.find('.target')
+      position = $item.offset().top + $page.scrollTop() - $page.height()/2
+      wiki.log 'scroll', $page, $item, position
+      $page.stop().animate {scrollTop: postion}, 'slow'
+
+    .delegate '.score', 'hover', (e) ->
+      $('.main').trigger 'thumb', $(e.target).data('thumb')
 
   $(".provider input").click ->
     $("footer input:first").val $(this).attr('data-provider')

@@ -366,7 +366,7 @@ require.define("/lib/util.coffee", function (require, module, exports, __dirname
       slug = util.asSlug(name);
       return "<a class=\"internal\" href=\"/" + slug + ".html\" data-page-name=\"" + slug + "\" title=\"" + (wiki.resolutionContext.join(' => ')) + "\">" + name + "</a>";
     };
-    return string.replace(/\[\[([^\]]+)\]\]/gi, renderInternalLink).replace(/\[(http.*?) (.*?)\]/gi, "<a class=\"external\" target=\"_blank\" href=\"$1\">$2</a>");
+    return string.replace(/\[\[([^\]]+)\]\]/gi, renderInternalLink).replace(/\[(http.*?) (.*?)\]/gi, "<a class=\"external\" target=\"_blank\" href=\"$1\">$2 <img src=\"/images/external-link-ltr-icon.png\"></a>");
   };
 
   util.randomByte = function() {
@@ -429,6 +429,8 @@ require.define("/lib/util.coffee", function (require, module, exports, __dirname
     return name.replace(/\s/g, '-').replace(/[^A-Za-z0-9-]/g, '').toLowerCase();
   };
 
+  if (typeof wiki !== "undefined" && wiki !== null) wiki.asSlug = util.asSlug;
+
   util.emptyPage = function() {
     return {
       title: 'empty',
@@ -470,6 +472,23 @@ require.define("/lib/util.coffee", function (require, module, exports, __dirname
       }
       return el.focus();
     }
+  };
+
+  util.createSynopsis = function(page) {
+    var p1, p2, synopsis;
+    synopsis = page.synopsis;
+    if ((page != null) && (page.story != null)) {
+      p1 = page.story[0];
+      p2 = page.story[1];
+      if (p1 && p1.type === 'paragraph') synopsis || (synopsis = p1.text);
+      if (p2 && p2.type === 'paragraph') synopsis || (synopsis = p2.text);
+      if (p1) synopsis || (synopsis = p1.text != null);
+      if (p2) synopsis || (synopsis = p2.text != null);
+      synopsis || (synopsis = (page.story != null) && ("A page with " + page.story.length + " items."));
+    } else {
+      synopsis = 'A page with no story.';
+    }
+    return synopsis;
   };
 
 }).call(this);
@@ -629,9 +648,11 @@ require.define("/lib/active.coffee", function (require, module, exports, __dirna
 
 require.define("/test/pageHandler.coffee", function (require, module, exports, __dirname, __filename) {
 (function() {
-  var pageHandler;
+  var mockServer, pageHandler;
 
   pageHandler = require('../lib/pageHandler.coffee');
+
+  mockServer = require('./mockServer.coffee');
 
   wiki.useLocalStorage = function() {
     return false;
@@ -657,7 +678,7 @@ require.define("/test/pageHandler.coffee", function (require, module, exports, _
     };
     describe('ajax fails', function() {
       before(function() {
-        return sinon.stub(jQuery, "ajax").yieldsTo('error');
+        return mockServer.simulatePageNotFound();
       });
       after(function() {
         return jQuery.ajax.restore();
@@ -702,7 +723,7 @@ require.define("/test/pageHandler.coffee", function (require, module, exports, _
         expect(whenGotten.calledOnce).to.be["true"];
         expect(jQuery.ajax.calledOnce).to.be["true"];
         expect(jQuery.ajax.args[0][0]).to.have.property('type', 'GET');
-        return expect(jQuery.ajax.args[0][0].url).to.match(/^\/remote\/siteName\/slugName\.json\?random=[a-z0-9]{8}$/);
+        return expect(jQuery.ajax.args[0][0].url).to.match(/^http:\/\/siteName\/slugName\.json\?random=[a-z0-9]{8}$/);
       });
       return after(function() {
         return jQuery.ajax.restore();
@@ -710,7 +731,7 @@ require.define("/test/pageHandler.coffee", function (require, module, exports, _
     });
     return describe('ajax, search', function() {
       before(function() {
-        sinon.stub(jQuery, "ajax").yieldsTo('error');
+        mockServer.simulatePageNotFound();
         return pageHandler.context = ['view', 'example.com', 'asdf.test', 'foo.bar'];
       });
       it('should search through the context for a page', function() {
@@ -720,9 +741,9 @@ require.define("/test/pageHandler.coffee", function (require, module, exports, _
           whenNotGotten: sinon.stub()
         });
         expect(jQuery.ajax.args[0][0].url).to.match(/^\/slugName\.json\?random=[a-z0-9]{8}$/);
-        expect(jQuery.ajax.args[1][0].url).to.match(/^\/remote\/example.com\/slugName\.json\?random=[a-z0-9]{8}$/);
-        expect(jQuery.ajax.args[2][0].url).to.match(/^\/remote\/asdf.test\/slugName\.json\?random=[a-z0-9]{8}$/);
-        return expect(jQuery.ajax.args[3][0].url).to.match(/^\/remote\/foo.bar\/slugName\.json\?random=[a-z0-9]{8}$/);
+        expect(jQuery.ajax.args[1][0].url).to.match(/^http:\/\/example.com\/slugName\.json\?random=[a-z0-9]{8}$/);
+        expect(jQuery.ajax.args[2][0].url).to.match(/^http:\/\/asdf.test\/slugName\.json\?random=[a-z0-9]{8}$/);
+        return expect(jQuery.ajax.args[3][0].url).to.match(/^http:\/\/foo.bar\/slugName\.json\?random=[a-z0-9]{8}$/);
       });
       return after(function() {
         return jQuery.ajax.restore();
@@ -783,7 +804,7 @@ require.define("/lib/pageHandler.coffee", function (require, module, exports, __
   };
 
   recursiveGet = function(_arg) {
-    var localContext, localPage, pageInformation, pageUrl, resource, rev, site, slug, whenGotten, whenNotGotten;
+    var localContext, localPage, pageInformation, rev, site, slug, url, whenGotten, whenNotGotten;
     pageInformation = _arg.pageInformation, whenGotten = _arg.whenGotten, whenNotGotten = _arg.whenNotGotten, localContext = _arg.localContext;
     slug = pageInformation.slug, rev = pageInformation.rev, site = pageInformation.site;
     if (site) {
@@ -797,33 +818,32 @@ require.define("/lib/pageHandler.coffee", function (require, module, exports, __
         if (localPage = pageFromLocalStorage(pageInformation.slug)) {
           return whenGotten(localPage, 'local');
         } else {
-
+          return whenNotGotten();
         }
       } else {
         if (site === 'origin') {
-          resource = slug;
+          url = "/" + slug + ".json";
         } else {
-          resource = "remote/" + site + "/" + slug;
+          url = "http://" + site + "/" + slug + ".json";
         }
       }
     } else {
-      resource = slug;
+      url = "/" + slug + ".json";
     }
-    pageUrl = "/" + resource + ".json?random=" + (util.randomBytes(4));
     return $.ajax({
       type: 'GET',
       dataType: 'json',
-      url: pageUrl,
+      url: url + ("?random=" + (util.randomBytes(4))),
       success: function(page) {
         if (rev) page = revision.create(rev, page);
         return whenGotten(page, site);
       },
       error: function(xhr, type, msg) {
         var report;
-        if (xhr.status !== 404) {
+        if ((xhr.status !== 404) && (xhr.status !== 0)) {
           wiki.log('pageHandler.get error', xhr, xhr.status, type, msg);
           report = {
-            'title': msg,
+            'title': "" + xhr.status + " " + msg,
             'story': [
               {
                 'type': 'paragraph',
@@ -1153,21 +1173,63 @@ require.define("/lib/revision.coffee", function (require, module, exports, __dir
 
 });
 
+require.define("/test/mockServer.coffee", function (require, module, exports, __dirname, __filename) {
+(function() {
+  var simulatePageFound, simulatePageNotFound;
+
+  simulatePageNotFound = function() {
+    var xhrFor404;
+    xhrFor404 = {
+      status: 404
+    };
+    return sinon.stub(jQuery, "ajax").yieldsTo('error', xhrFor404);
+  };
+
+  simulatePageFound = function(pageToReturn) {
+    if (pageToReturn == null) pageToReturn = {};
+    return sinon.stub(jQuery, "ajax").yieldsTo('success', pageToReturn);
+  };
+
+  module.exports = {
+    simulatePageNotFound: simulatePageNotFound,
+    simulatePageFound: simulatePageFound
+  };
+
+}).call(this);
+
+});
+
 require.define("/test/refresh.coffee", function (require, module, exports, __dirname, __filename) {
 (function() {
-  var refresh;
+  var mockServer, refresh;
 
   refresh = require('../lib/refresh.coffee');
 
+  mockServer = require('./mockServer.coffee');
+
   describe('refresh', function() {
-    before(function() {
-      sinon.stub(jQuery, "ajax").yieldsTo('success', {
+    var $page, simulatePageNotBeingFound;
+    simulatePageNotBeingFound = function() {
+      return sinon.stub(jQuery, "ajax").yieldsTo('success', {
         title: 'asdf'
       });
-      return $('<div id="refresh" />').appendTo('body');
+    };
+    $page = void 0;
+    before(function() {
+      $page = $('<div id="refresh" />');
+      return $page.appendTo('body');
     });
-    return it('should refresh a page', function(done) {
-      $('#refresh').each(refresh);
+    it("creates a ghost page when page couldn't be found", function() {
+      mockServer.simulatePageNotFound();
+      $page.each(refresh);
+      expect($page.hasClass('ghost')).to.be(true);
+      return expect($page.data('data').story[0].type).to.be('future');
+    });
+    return xit('should refresh a page', function(done) {
+      simulatePageFound({
+        title: 'asdf'
+      });
+      $page.each(refresh);
       jQuery.ajax.restore();
       expect($('#refresh h1').text()).to.be(' asdf');
       return done();
@@ -1181,6 +1243,7 @@ require.define("/test/refresh.coffee", function (require, module, exports, __dir
 require.define("/lib/refresh.coffee", function (require, module, exports, __dirname, __filename) {
 (function() {
   var createFactory, emitHeader, handleDragging, initAddButton, initDragging, neighborhood, pageHandler, plugin, refresh, state, util;
+  var __slice = Array.prototype.slice;
 
   util = require('./util.coffee');
 
@@ -1193,11 +1256,12 @@ require.define("/lib/refresh.coffee", function (require, module, exports, __dirn
   neighborhood = require('./neighborhood.coffee');
 
   handleDragging = function(evt, ui) {
-    var action, before, beforeElement, destinationPageElement, equals, item, itemElement, journalElement, moveFromPage, moveToPage, moveWithinPage, order, sourcePageElement, thisPageElement;
+    var action, before, beforeElement, destinationPageElement, equals, item, itemElement, journalElement, moveFromPage, moveToPage, moveWithinPage, order, sourcePageElement, sourceSite, thisPageElement;
     itemElement = ui.item;
     item = wiki.getItem(itemElement);
     thisPageElement = $(this).parents('.page:first');
     sourcePageElement = itemElement.data('pageElement');
+    sourceSite = sourcePageElement.data('site');
     destinationPageElement = itemElement.parents('.page:first');
     journalElement = thisPageElement.find('.journal');
     equals = function(a, b) {
@@ -1231,9 +1295,8 @@ require.define("/lib/refresh.coffee", function (require, module, exports, __dirn
     var storyElement;
     storyElement = pageElement.find('.story');
     return storyElement.sortable({
-      update: handleDragging,
       connectWith: '.page .story'
-    });
+    }).on("sortupdate", handleDragging);
   };
 
   initAddButton = function(pageElement) {
@@ -1269,9 +1332,9 @@ require.define("/lib/refresh.coffee", function (require, module, exports, __dirn
     var date, rev, site;
     site = $(pageElement).data('site');
     if ((site != null) && site !== 'local' && site !== 'origin' && site !== 'view') {
-      $(pageElement).append("<h1><a href=\"//" + site + "\"><img src = \"/remote/" + site + "/favicon.png\" height = \"32px\"></a> " + page.title + "</h1>");
+      $(pageElement).append("<h1 title=\"" + site + "\"><a href=\"//" + site + "\"><img src = \"http://" + site + "/favicon.png\" height = \"32px\"></a> " + page.title + "</h1>");
     } else {
-      $(pageElement).append($("<h1 />").append($("<a />").attr('href', '/').append($("<img>").error(function(e) {
+      $(pageElement).append($("<h1 title=\"" + location.host + "\"/>").append($("<a />").attr('href', '/').append($("<img>").error(function(e) {
         return plugin.get('favicon', function(favicon) {
           return favicon.create();
         });
@@ -1283,8 +1346,68 @@ require.define("/lib/refresh.coffee", function (require, module, exports, __dirn
     }
   };
 
+  wiki.buildPage = function(data, siteFound, pageElement) {
+    var action, addContext, context, doItem, footerElement, journalElement, page, site, slug, storyElement, _i, _len, _ref, _ref2;
+    if (siteFound === 'local') {
+      pageElement.addClass('local');
+    } else {
+      pageElement.data('site', siteFound);
+    }
+    if (!(data != null)) {
+      pageElement.find('.item').each(function(i, each) {
+        var item;
+        item = wiki.getItem($(each));
+        return plugin.get(item.type, function(plugin) {
+          return plugin.bind($(each), item);
+        });
+      });
+    } else {
+      page = $.extend(util.emptyPage(), data);
+      $(pageElement).data("data", page);
+      slug = $(pageElement).attr('id');
+      site = $(pageElement).data('site');
+      context = ['view'];
+      if (site != null) context.push(site);
+      addContext = function(site) {
+        if ((site != null) && !_.include(context, site)) return context.push(site);
+      };
+      _ref = page.journal.slice(0).reverse();
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        action = _ref[_i];
+        addContext(action.site);
+      }
+      wiki.resolutionContext = context;
+      wiki.log('buildPage', slug, 'site', site, 'context', context.join(' => '));
+      emitHeader(pageElement, page);
+      _ref2 = ['story', 'journal', 'footer'].map(function(className) {
+        return $("<div />").addClass(className).appendTo(pageElement);
+      }), storyElement = _ref2[0], journalElement = _ref2[1], footerElement = _ref2[2];
+      doItem = function(i) {
+        var div, item;
+        if (i >= page.story.length) return;
+        item = page.story[i];
+        if ($.isArray(item)) item = item[0];
+        div = $("<div />").addClass("item").addClass(item.type).attr("data-id", item.id);
+        storyElement.append(div);
+        return plugin["do"](div, item, function() {
+          return doItem(i + 1);
+        });
+      };
+      doItem(0);
+      $.each(page.journal, function(i, action) {
+        return wiki.addToJournal(journalElement, action);
+      });
+      journalElement.append("<div class=\"control-buttons\">\n  <a href=\"#\" class=\"button fork-page\" title=\"fork this page\">" + util.symbols['fork'] + "</a>\n  <a href=\"#\" class=\"button add-factory\" title=\"add paragraph\">" + util.symbols['add'] + "</a>\n</div>");
+      footerElement.append('<a id="license" href="http://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a> . ').append("<a class=\"show-page-source\" href=\"/" + slug + ".json?random=" + (util.randomBytes(4)) + "\" title=\"source\">JSON</a> . ").append("<a>" + (siteFound || 'origin') + "</a>");
+      state.setUrl();
+    }
+    initDragging(pageElement);
+    initAddButton(pageElement);
+    return pageElement;
+  };
+
   module.exports = refresh = wiki.refresh = function() {
-    var buildPage, createPage, pageElement, pageInformation, registerNeighbors, rev, slug, whenGotten, _ref;
+    var createGhostPage, pageElement, pageInformation, registerNeighbors, rev, slug, whenGotten, _ref;
     pageElement = $(this);
     _ref = pageElement.attr('id').split('_rev'), slug = _ref[0], rev = _ref[1];
     pageInformation = {
@@ -1293,75 +1416,50 @@ require.define("/lib/refresh.coffee", function (require, module, exports, __dirn
       site: pageElement.data('site'),
       wasServerGenerated: pageElement.attr('data-server-generated') === 'true'
     };
-    buildPage = function(data, siteFound) {
-      var action, addContext, context, footerElement, journalElement, page, site, storyElement, _i, _len, _ref2, _ref3;
-      if (siteFound === 'local') {
-        pageElement.addClass('local');
-      } else {
-        pageElement.data('site', siteFound);
-      }
-      if (!(data != null)) {
-        pageElement.find('.item').each(function(i, each) {
-          var item;
-          item = wiki.getItem($(each));
-          return plugin.get(item.type, function(plugin) {
-            return plugin.bind($(each), item);
-          });
-        });
-      } else {
-        page = $.extend(util.emptyPage(), data);
-        $(pageElement).data("data", page);
-        slug = $(pageElement).attr('id');
-        site = $(pageElement).data('site');
-        context = ['view'];
-        if (site != null) context.push(site);
-        addContext = function(site) {
-          if ((site != null) && !_.include(context, site)) {
-            return context.push(site);
+    createGhostPage = function() {
+      var heading, hits, info, page, result, site, title, _ref2, _ref3;
+      title = $("a[href=\"/" + slug + ".html\"]:last").text() || slug;
+      page = {
+        'title': title,
+        'story': [
+          {
+            'id': util.randomBytes(8),
+            'type': 'future',
+            'text': 'We could not find this page.',
+            'title': title
           }
-        };
-        _ref2 = page.journal.slice(0).reverse();
-        for (_i = 0, _len = _ref2.length; _i < _len; _i++) {
-          action = _ref2[_i];
-          addContext(action.site);
+        ]
+      };
+      heading = {
+        'type': 'paragraph',
+        'id': util.randomBytes(8),
+        'text': "We did find the page in your current neighborhood."
+      };
+      hits = [];
+      _ref2 = wiki.neighborhood;
+      for (site in _ref2) {
+        info = _ref2[site];
+        if (info.sitemap != null) {
+          result = _.find(info.sitemap, function(each) {
+            return each.slug === slug;
+          });
+          if (result != null) {
+            hits.push({
+              "type": "reference",
+              "id": util.randomBytes(8),
+              "site": site,
+              "slug": slug,
+              "title": result.title || slug,
+              "text": result.synopsis || ''
+            });
+          }
         }
-        wiki.resolutionContext = context;
-        wiki.log('buildPage', slug, 'site', site, 'context', context.join(' => '));
-        emitHeader(pageElement, page);
-        _ref3 = ['story', 'journal', 'footer'].map(function(className) {
-          return $("<div />").addClass(className).appendTo(pageElement);
-        }), storyElement = _ref3[0], journalElement = _ref3[1], footerElement = _ref3[2];
-        $.each(page.story, function(i, item) {
-          var div;
-          if ($.isArray(item)) item = item[0];
-          div = $("<div />").addClass("item").addClass(item.type).attr("data-id", item.id);
-          storyElement.append(div);
-          return plugin["do"](div, item);
-        });
-        $.each(page.journal, function(i, action) {
-          return wiki.addToJournal(journalElement, action);
-        });
-        journalElement.append("<div class=\"control-buttons\">\n  <a href=\"#\" class=\"button fork-page\" title=\"fork this page\">" + util.symbols['fork'] + "</a>\n  <a href=\"#\" class=\"button add-factory\" title=\"add paragraph\">" + util.symbols['add'] + "</a>\n</div>");
-        footerElement.append('<a id="license" href="http://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a> . ').append("<a class=\"show-page-source\" href=\"/" + slug + ".json?random=" + (util.randomBytes(4)) + "\" title=\"source\">JSON</a>");
-        state.setUrl();
       }
-      initDragging(pageElement);
-      return initAddButton(pageElement);
-    };
-    createPage = function() {
-      var title;
-      title = $("a[href=\"/" + slug + ".html\"]:last").text();
-      title || (title = slug);
-      pageHandler.put($(pageElement), {
-        type: 'create',
-        id: util.randomBytes(8),
-        item: {
-          title: title
-        }
-      });
-      return buildPage({
-        title: title
-      });
+      if (hits.length > 0) {
+        (_ref3 = page.story).push.apply(_ref3, [heading].concat(__slice.call(hits)));
+        page.story[0].text = 'We could not find this page in the expected context.';
+      }
+      return wiki.buildPage(page, void 0, pageElement).addClass('ghost');
     };
     registerNeighbors = function(data, site) {
       var action, item, _i, _j, _len, _len2, _ref2, _ref3, _results;
@@ -1388,12 +1486,12 @@ require.define("/lib/refresh.coffee", function (require, module, exports, __dirn
       return _results;
     };
     whenGotten = function(data, siteFound) {
-      buildPage(data, siteFound);
+      wiki.buildPage(data, siteFound, pageElement);
       return registerNeighbors(data, siteFound);
     };
     return pageHandler.get({
       whenGotten: whenGotten,
-      whenNotGotten: createPage,
+      whenNotGotten: createGhostPage,
       pageInformation: pageInformation
     });
   };
@@ -1436,8 +1534,9 @@ require.define("/lib/plugin.coffee", function (require, module, exports, __dirna
     });
   };
 
-  plugin["do"] = wiki.doPlugin = function(div, item) {
+  plugin["do"] = wiki.doPlugin = function(div, item, done) {
     var error;
+    if (done == null) done = function() {};
     error = function(ex) {
       var errorElement;
       errorElement = $("<div />").addClass('error');
@@ -1451,10 +1550,20 @@ require.define("/lib/plugin.coffee", function (require, module, exports, __dirna
         if (script == null) {
           throw TypeError("Can't find plugin for '" + item.type + "'");
         }
-        script.emit(div, item);
-        return script.bind(div, item);
+        if (script.emit.length > 2) {
+          return script.emit(div, item, function() {
+            script.bind(div, item);
+            return done();
+          });
+        } else {
+          script.emit(div, item);
+          script.bind(div, item);
+          return done();
+        }
       } catch (err) {
-        return error(err);
+        wiki.log('plugin error', err);
+        error(err);
+        return done();
       }
     });
   };
@@ -1488,6 +1597,26 @@ require.define("/lib/plugin.coffee", function (require, module, exports, __dirna
           return wiki.dialog(item.text, this);
         });
       }
+    },
+    future: {
+      emit: function(div, item) {
+        var info, _i, _len, _ref, _results;
+        div.append("" + item.text + "<br><br><button class=\"create\">create</button> new blank page");
+        if (((info = wiki.neighborhood[location.host]) != null) && (info.sitemap != null)) {
+          _ref = info.sitemap;
+          _results = [];
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            item = _ref[_i];
+            if (item.slug.match(/-template$/)) {
+              _results.push(div.append("<br><button class=\"create\" data-slug=" + item.slug + ">create</button> from " + (wiki.resolveLinks("[[" + item.title + "]]"))));
+            } else {
+              _results.push(void 0);
+            }
+          }
+          return _results;
+        }
+      },
+      bind: function(div, item) {}
     }
   };
 
@@ -1497,17 +1626,64 @@ require.define("/lib/plugin.coffee", function (require, module, exports, __dirna
 
 require.define("/lib/neighborhood.coffee", function (require, module, exports, __dirname, __filename) {
 (function() {
-  var neighborhood, _ref;
+  var active, createSearch, neighborhood, nextAvailableFetch, nextFetchInterval, populateSiteInfoFor, util, _ref;
+  var __hasProp = Object.prototype.hasOwnProperty;
+
+  active = require('./active.coffee');
+
+  util = require('./util.coffee');
+
+  createSearch = require('./search.coffee');
 
   module.exports = neighborhood = {};
 
   if ((_ref = wiki.neighborhood) == null) wiki.neighborhood = {};
 
-  neighborhood.registerNeighbor = function(site) {
+  nextAvailableFetch = 0;
+
+  nextFetchInterval = 2000;
+
+  populateSiteInfoFor = function(site, neighborInfo) {
+    var fetchMap, now, transition;
+    if (neighborInfo.sitemapRequestInflight) return;
+    neighborInfo.sitemapRequestInflight = true;
+    transition = function(site, from, to) {
+      return $(".neighbor[data-site=\"" + site + "\"]").find('div').removeClass(from).addClass(to);
+    };
+    fetchMap = function() {
+      var request, sitemapUrl;
+      sitemapUrl = "http://" + site + "/system/sitemap.json";
+      transition(site, 'wait', 'fetch');
+      request = $.ajax({
+        type: 'GET',
+        dataType: 'json',
+        url: sitemapUrl
+      });
+      return request.always(function() {
+        return neighborInfo.sitemapRequestInflight = false;
+      }).done(function(data) {
+        neighborInfo.sitemap = data;
+        return transition(site, 'fetch', 'done');
+      }).fail(function(data) {
+        return transition(site, 'fetch', 'fail');
+      });
+    };
+    now = Date.now();
+    if (now > nextAvailableFetch) {
+      nextAvailableFetch = now + nextFetchInterval;
+      return setTimeout(fetchMap, 100);
+    } else {
+      setTimeout(fetchMap, nextAvailableFetch - now);
+      return nextAvailableFetch += nextFetchInterval;
+    }
+  };
+
+  wiki.registerNeighbor = neighborhood.registerNeighbor = function(site) {
     var neighborInfo;
-    neighborInfo = {};
     if (wiki.neighborhood[site] != null) return;
-    wiki.neighborhood[site] = site;
+    neighborInfo = {};
+    wiki.neighborhood[site] = neighborInfo;
+    populateSiteInfoFor(site, neighborInfo);
     return $('body').trigger('new-neighbor', site);
   };
 
@@ -1515,26 +1691,145 @@ require.define("/lib/neighborhood.coffee", function (require, module, exports, _
     return _.keys(wiki.neighborhood);
   };
 
+  neighborhood.search = function(searchQuery) {
+    var finds, match, matchingPages, neighborInfo, neighborSite, sitemap, start, tally, tick, _ref2;
+    finds = [];
+    tally = {};
+    tick = function(key) {
+      if (tally[key] != null) {
+        return tally[key]++;
+      } else {
+        return tally[key] = 1;
+      }
+    };
+    match = function(key, text) {
+      var hit;
+      hit = (text != null) && text.toLowerCase().indexOf(searchQuery.toLowerCase()) >= 0;
+      if (hit) tick(key);
+      return hit;
+    };
+    start = Date.now();
+    _ref2 = wiki.neighborhood;
+    for (neighborSite in _ref2) {
+      if (!__hasProp.call(_ref2, neighborSite)) continue;
+      neighborInfo = _ref2[neighborSite];
+      sitemap = neighborInfo.sitemap;
+      if (sitemap != null) tick('sites');
+      matchingPages = _.each(sitemap, function(page) {
+        tick('pages');
+        if (!(match('title', page.title) || match('text', page.synopsis) || match('slug', page.slug))) {
+          return;
+        }
+        tick('finds');
+        return finds.push({
+          page: page,
+          site: neighborSite,
+          rank: 1
+        });
+      });
+    }
+    tally['msec'] = Date.now() - start;
+    return {
+      finds: finds,
+      tally: tally
+    };
+  };
+
   $(function() {
-    var $neighborhood, flag;
+    var $neighborhood, flag, search;
     $neighborhood = $('.neighborhood');
     flag = function(site) {
-      return "<span class=\"neighbor\">\n  <img src=\"http://" + site + "/favicon.png\" title=\"" + site + "\">\n</span>";
+      return "<span class=\"neighbor\" data-site=\"" + site + "\">\n  <div class=\"wait\">\n    <img src=\"http://" + site + "/favicon.png\" title=\"" + site + "\">\n  </div>\n</span>";
     };
-    return $('body').on('neighborhood-change', function() {
-      $neighborhood.empty();
-      return _.each(neighborhood.listNeighbors(), function(site) {
-        return $neighborhood.append(flag(site));
-      });
-    }).on('new-neighbor', function(e, site) {
-      wiki.log('new-neighbor', site);
+    $('body').on('new-neighbor', function(e, site) {
       return $neighborhood.append(flag(site));
     }).delegate('.neighbor img', 'click', function(e) {
       return wiki.doInternalLink('welcome-visitors', null, this.title);
     });
+    search = createSearch({
+      neighborhood: neighborhood
+    });
+    return $('input.search').on('keypress', function(e) {
+      var searchQuery;
+      if (e.keyCode !== 13) return;
+      searchQuery = $(this).val();
+      search.performSearch(searchQuery);
+      return $(this).val("");
+    });
   });
 
 }).call(this);
+
+});
+
+require.define("/lib/search.coffee", function (require, module, exports, __dirname, __filename) {
+(function() {
+  var active, createSearch, util;
+
+  util = require('./util');
+
+  active = require('./active');
+
+  require('./dom');
+
+  createSearch = function(_arg) {
+    var neighborhood, performSearch;
+    neighborhood = _arg.neighborhood;
+    performSearch = function(searchQuery) {
+      var $searchResultPage, explanatoryPara, result, searchResultPageData, searchResultReferences, searchResults, tally;
+      searchResults = neighborhood.search(searchQuery);
+      tally = searchResults.tally;
+      explanatoryPara = {
+        type: 'paragraph',
+        id: util.randomBytes(8),
+        text: "String '" + searchQuery + "' found on " + (tally.finds || 'none') + " of " + (tally.pages || 'no') + " pages from " + (tally.sites || 'no') + " sites.\nText matched on " + (tally.title || 'no') + " titles, " + (tally.text || 'no') + " paragraphs, and " + (tally.slug || 'no') + " slugs.\nElapsed time " + tally.msec + " milliseconds."
+      };
+      searchResultReferences = (function() {
+        var _i, _len, _ref, _results;
+        _ref = searchResults.finds;
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          result = _ref[_i];
+          _results.push({
+            "type": "reference",
+            "id": util.randomBytes(8),
+            "site": result.site,
+            "slug": result.page.slug,
+            "title": result.page.title,
+            "text": result.page.synopsis || ''
+          });
+        }
+        return _results;
+      })();
+      searchResultPageData = {
+        title: "Search Results",
+        story: [explanatoryPara].concat(searchResultReferences)
+      };
+      $searchResultPage = wiki.createPage('search-results').addClass('ghost');
+      $searchResultPage.appendTo($('.main'));
+      wiki.buildPage(searchResultPageData, null, $searchResultPage);
+      return active.set($('.page').last());
+    };
+    return {
+      performSearch: performSearch
+    };
+  };
+
+  module.exports = createSearch;
+
+}).call(this);
+
+});
+
+require.define("/lib/dom.coffee", function (require, module, exports, __dirname, __filename) {
+
+  wiki.createPage = function(name, loc) {
+    if (loc && loc !== 'view') {
+      return $("<div/>").attr('id', name).attr('data-site', loc).addClass("page");
+    } else {
+      return $("<div/>").attr('id', name).addClass("page");
+    }
+  };
 
 });
 
@@ -1835,6 +2130,147 @@ require.define("/test/revision.coffee", function (require, module, exports, __di
 
 });
 
+require.define("/test/neighborhood.coffee", function (require, module, exports, __dirname, __filename) {
+(function() {
+  var neighborhood;
+
+  neighborhood = require('../lib/neighborhood.coffee');
+
+  describe('neighborhood', function() {
+    describe('no neighbors', function() {
+      return it('should return an empty array for our search', function() {
+        var searchResult;
+        searchResult = neighborhood.search("query string");
+        return expect(searchResult.finds).to.eql([]);
+      });
+    });
+    describe('a single neighbor with a few pages', function() {
+      before(function() {
+        var fakeSitemap, neighbor;
+        fakeSitemap = [
+          {
+            title: 'Page One',
+            slug: 'page-one',
+            date: 'date1'
+          }, {
+            title: 'Page Two',
+            slug: 'page-two',
+            date: 'date2'
+          }, {
+            title: 'Page Three'
+          }
+        ];
+        neighbor = {
+          sitemap: fakeSitemap
+        };
+        wiki.neighborhood = {};
+        return wiki.neighborhood['my-site'] = neighbor;
+      });
+      it('returns all pages that match the query', function() {
+        var searchResult;
+        searchResult = neighborhood.search("Page");
+        return expect(searchResult.finds).to.have.length(3);
+      });
+      it('returns only pages that match the query', function() {
+        var searchResult;
+        searchResult = neighborhood.search("Page T");
+        return expect(searchResult.finds).to.have.length(2);
+      });
+      it('should package the results in the correct format', function() {
+        var expectedResult, searchResult;
+        expectedResult = [
+          {
+            site: 'my-site',
+            page: {
+              title: 'Page Two',
+              slug: 'page-two',
+              date: 'date2'
+            },
+            rank: 1
+          }
+        ];
+        searchResult = neighborhood.search("Page Two");
+        return expect(searchResult.finds).to.eql(expectedResult);
+      });
+      return it('searches both the slug and the title');
+    });
+    describe('more than one neighbor', function() {
+      before(function() {
+        wiki.neighborhood = {};
+        wiki.neighborhood['site-one'] = {
+          sitemap: [
+            {
+              title: 'Page One from Site 1'
+            }, {
+              title: 'Page Two from Site 1'
+            }, {
+              title: 'Page Three from Site 1'
+            }
+          ]
+        };
+        return wiki.neighborhood['site-two'] = {
+          sitemap: [
+            {
+              title: 'Page One from Site 2'
+            }, {
+              title: 'Page Two from Site 2'
+            }, {
+              title: 'Page Three from Site 2'
+            }
+          ]
+        };
+      });
+      return it('returns matching pages from every neighbor', function() {
+        var searchResult, sites;
+        searchResult = neighborhood.search("Page Two");
+        expect(searchResult.finds).to.have.length(2);
+        sites = _.pluck(searchResult.finds, 'site');
+        return expect(sites.sort()).to.eql(['site-one', 'site-two'].sort());
+      });
+    });
+    return describe('an unpopulated neighbor', function() {
+      before(function() {
+        wiki.neighborhood = {};
+        return wiki.neighborhood['unpopulated-site'] = {};
+      });
+      it('gracefully ignores unpopulated neighbors', function() {
+        var searchResult;
+        searchResult = neighborhood.search("some search query");
+        return expect(searchResult.finds).to.be.empty();
+      });
+      return it('should re-populate the neighbor');
+    });
+  });
+
+}).call(this);
+
+});
+
+require.define("/test/search.coffee", function (require, module, exports, __dirname, __filename) {
+(function() {
+  var createSearch;
+
+  createSearch = require('../lib/search.coffee');
+
+  describe('search', function() {
+    return xit('performs a search on the neighborhood', function() {
+      var search, spyNeighborhood;
+      spyNeighborhood = {
+        search: sinon.stub().returns([])
+      };
+      search = createSearch({
+        neighborhood: spyNeighborhood
+      });
+      search.performSearch('some search query');
+      expect(spyNeighborhood.search.called).to.be(true);
+      return expect(spyNeighborhood.search.args[0][0]).to.be('some search query');
+    });
+  });
+
+}).call(this);
+
+});
+
 require.define("/changes.js", function (require, module, exports, __dirname, __filename) {
 // Generated by CoffeeScript 1.3.3
 (function() {
@@ -1962,6 +2398,8 @@ require.define("/testclient.coffee", function (require, module, exports, __dirna
 
   wiki.resolveLinks = util.resolveLinks;
 
+  wiki.resolutionContext = ['view'];
+
   require('./test/util.coffee');
 
   require('./test/active.coffee');
@@ -1973,6 +2411,10 @@ require.define("/testclient.coffee", function (require, module, exports, __dirna
   require('./test/plugin.coffee');
 
   require('./test/revision.coffee');
+
+  require('./test/neighborhood.coffee');
+
+  require('./test/search.coffee');
 
   $(function() {
     $('<hr><h2> Testing artifacts:</h2>').appendTo('body');

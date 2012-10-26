@@ -17,13 +17,20 @@ module.exports = exports = (argv) ->
   load_parse = (loc, cb) ->
     fs.readFile(loc, (err, data) ->
       if err then cb(err)
-      cb(null, JSON.parse(data))
+      try 
+        page = JSON.parse(data)
+      catch e
+        return cb(e)
+      cb(null, page)
     )
 
   load_parse_copy = (defloc, file, cb) ->
     fs.readFile(defloc, (err, data) ->
       if err then cb(err)
-      page = JSON.parse(data)
+      try
+        page = JSON.parse(data)
+      catch e
+        return cb(e)
       cb(null, page)
       itself.put(file, page, (err) ->
         if err then cb(err)
@@ -62,7 +69,7 @@ module.exports = exports = (argv) ->
                     pluginloc = path.join(plugindir, plugin, 'pages', file)
                     path.exists(pluginloc, (exists) ->
                       if exists
-                        load_parse_copy(pluginloc, file, cb)
+                        load_parse(pluginloc, cb)
                       else
                         giveUp()
                     )

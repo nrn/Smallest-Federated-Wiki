@@ -6,76 +6,11 @@
     emit: function(div, item) {
       return wiki.getScript('/js/d3/d3.js', function() {
         return wiki.getScript('/js/d3/d3.time.js', function() {
-          var angle, c, candidates, centerXPos, centerYPos, circleAxes, circleConstraint, colorSelector, comments, d, data, dimension, fill, h, heightCircleConstraint, hours, keys, lastThumb, limit, limitsFromData, lineAxes, m, maxVal, minVal, o, percents, radialTicks, radius, radiusLength, rotate, ruleColor, series, translate, value, viz, vizBody, vizPadding, w, who, widthCircleConstraint, _i, _j, _k, _ref, _ref1, _ref2, _results;
+          var angle, c, candidates, centerXPos, centerYPos, circleAxes, circleConstraint, colorSelector, comments, complete, d, data, dimension, each, fill, h, heightCircleConstraint, hours, k, keys, lastThumb, limit, limitsFromData, lineAxes, m, max, maxVal, merged, merging, minVal, o, parseText, percents, radialTicks, radius, radiusLength, rotate, rows, ruleColor, series, translate, value, viz, vizBody, vizPadding, w, who, widthCircleConstraint, _i, _j, _k, _l, _len, _len1, _m, _ref, _ref1, _ref2, _results;
           div.append(' <style>\n svg { font: 10px sans-serif; }\n</style>');
-          limit = {
-            "Carcinogenicity": 7,
-            "Acute Toxicity": 7,
-            "Chronic Toxicity": 7,
-            "Reproductive / Endocrine Disrupter Toxicity": 4,
-            "Chemistry Total": 25,
-            "Energy Intensity": 10,
-            "GHG Emissions Intensity": 15,
-            "Energy / GHG Emissions Total": 25,
-            "Water Intensity": 18,
-            "Land Use Intensity": 7,
-            "Water / Land Use Total": 25,
-            "Hazardous Waste": 10,
-            "MSW": 6.25,
-            "Industrial Waste": 5,
-            "Recyclable / Compostable Waste": 2.5,
-            "Mineral Waste": 1.25,
-            "Physical Waste Total": 25,
-            "Total Score": 100
-          };
-          limitsFromData = function(data) {
-            var d, k, keys, max, v, _i, _len, _results;
-            max = -Infinity;
-            keys = {};
-            for (_i = 0, _len = data.length; _i < _len; _i++) {
-              d = data[_i];
-              for (k in d) {
-                v = d[k];
-                keys[k] = 1;
-                max = v > max ? v : max;
-              }
-            }
-            limit = {};
-            _results = [];
-            for (k in keys) {
-              v = keys[k];
-              _results.push(limit[k] = max);
-            }
-            return _results;
-          };
-          candidates = $(".item:lt(" + ($('.item').index(div)) + ")");
-          if ((who = candidates.filter(".radar-source")).size()) {
-            limitsFromData((data = (function() {
-              var _i, _len, _results;
-              _results = [];
-              for (_i = 0, _len = who.length; _i < _len; _i++) {
-                d = who[_i];
-                _results.push(d.radarData());
-              }
-              return _results;
-            })()));
-          } else if ((who = candidates.filter(".data")).size()) {
-            who = who.filter(function(d) {
-              return $(this).data('item').data.length === 1;
-            });
-            data = (function() {
-              var _i, _len, _results;
-              _results = [];
-              for (_i = 0, _len = who.length; _i < _len; _i++) {
-                d = who[_i];
-                _results.push($(d).data('item').data[0]);
-              }
-              return _results;
-            })();
-          } else {
-            throw "Can't find suitable data";
-          }
-          keys = Object.keys(limit);
+          limit = {};
+          keys = [];
+          max = -Infinity;
           value = function(obj) {
             if (obj == null) {
               return NaN;
@@ -95,16 +30,152 @@
                 return NaN;
             }
           };
+          parseText = function(text) {
+            var args, line, _i, _len, _ref;
+            _ref = text.split("\n");
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              line = _ref[_i];
+              if (args = line.match(/^([0-9.eE-]+) +([\w \/%(){},&-]+)$/)) {
+                keys.push(args[2]);
+                limit[args[2]] = +args[1];
+              } else if (args = line.match(/^([0-9\.eE-]+)$/)) {
+                max = +args[1];
+              } else if (args = line.match(/^ *([\w \/%(){},&-]+)$/)) {
+                keys.push(args[1]);
+              }
+            }
+            return wiki.log('radar parseText', keys, limit, max);
+          };
+          limitsFromData = function(data) {
+            var d, k, v, vv, _i, _len;
+            limit = {};
+            for (_i = 0, _len = data.length; _i < _len; _i++) {
+              d = data[_i];
+              for (k in d) {
+                v = d[k];
+                vv = value(v);
+                if (!isNaN(vv)) {
+                  wiki.log('limits from data keys', k, v, vv);
+                  if (limit[k]) {
+                    if (vv > limit[k]) {
+                      limit[k] = vv;
+                    }
+                  } else {
+                    limit[k] = vv;
+                  }
+                }
+              }
+            }
+            return wiki.log('limits from data', limit);
+          };
+          candidates = $(".item:lt(" + ($('.item').index(div)) + ")");
+          if ((who = candidates.filter(".radar-source")).size()) {
+            data = (function() {
+              var _i, _len, _results;
+              _results = [];
+              for (_i = 0, _len = who.length; _i < _len; _i++) {
+                d = who[_i];
+                _results.push(d.radarData());
+              }
+              return _results;
+            })();
+          } else if ((who = candidates.filter(".data")).size()) {
+            rows = who.filter(function(d) {
+              return $(this).data('item').data.length === 1;
+            });
+            if (rows.length > 0) {
+              data = (function() {
+                var _i, _len, _results;
+                _results = [];
+                for (_i = 0, _len = rows.length; _i < _len; _i++) {
+                  d = rows[_i];
+                  _results.push($(d).data('item').data[0]);
+                }
+                return _results;
+              })();
+            } else {
+              data = who.last().data('item').data;
+            }
+          } else {
+            throw "Can't find suitable data";
+          }
+          wiki.log('radar data', data);
+          if ((item.text != null) && item.text.match(/\S/)) {
+            parseText(item.text);
+            if (_.isEmpty(limit)) {
+              if (max === -Infinity) {
+                limitsFromData(data);
+              } else {
+                if (_.isEmpty(keys)) {
+                  limitsFromData(data);
+                  keys = Object.keys(limit);
+                }
+                for (_i = 0, _len = keys.length; _i < _len; _i++) {
+                  k = keys[_i];
+                  limit[k] = max;
+                }
+              }
+            }
+          } else {
+            limitsFromData(data);
+            keys = Object.keys(limit);
+          }
+          wiki.log('radar limit', limit);
+          complete = function(object) {
+            var key, _j, _len1;
+            for (_j = 0, _len1 = keys.length; _j < _len1; _j++) {
+              key = keys[_j];
+              if (object[key] == null) {
+                return false;
+              }
+            }
+            return true;
+          };
+          merged = [];
+          merging = {};
+          for (_j = 0, _len1 = data.length; _j < _len1; _j++) {
+            each = data[_j];
+            _.extend(merging, each);
+            if (complete(merging)) {
+              merged.push(merging);
+              merging = {};
+            }
+          }
+          data = merged;
           percents = function(obj) {
-            var k, _i, _len, _ref, _results;
+            var _k, _l, _len2, _len3, _ref, _results;
+            for (_k = 0, _len2 = keys.length; _k < _len2; _k++) {
+              k = keys[_k];
+              if (obj[k] == null) {
+                throw "Missing value for '" + k + "'";
+              }
+            }
             _ref = keys.concat(keys[0]);
             _results = [];
-            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-              k = _ref[_i];
+            for (_l = 0, _len3 = _ref.length; _l < _len3; _l++) {
+              k = _ref[_l];
               _results.push(100.0 * value(obj[k]) / limit[k]);
             }
             return _results;
           };
+          div.dblclick(function(e) {
+            if (e.shiftKey) {
+              return wiki.dialog("JSON for Radar plugin", $('<pre/>').text(JSON.stringify(item, null, 2)));
+            } else {
+              if (!((item.text != null) && item.text.match(/\S/))) {
+                item.text = ((function() {
+                  var _k, _len2, _results;
+                  _results = [];
+                  for (_k = 0, _len2 = keys.length; _k < _len2; _k++) {
+                    k = keys[_k];
+                    _results.push("" + limit[k] + " " + k);
+                  }
+                  return _results;
+                })()).join("\n");
+              }
+              return wiki.textEditor(div, item);
+            }
+          });
           w = 400;
           h = 400;
           vizPadding = {
@@ -125,17 +196,18 @@
             return "translate(" + (radius(maxVal * percent / 100)) + ")";
           };
           series = (function() {
-            var _i, _len, _results;
+            var _k, _len2, _results;
             _results = [];
-            for (_i = 0, _len = data.length; _i < _len; _i++) {
-              d = data[_i];
+            for (_k = 0, _len2 = data.length; _k < _len2; _k++) {
+              d = data[_k];
               _results.push(percents(d));
             }
             return _results;
           })();
+          wiki.log('radar series', series);
           comments = [];
-          for (m = _i = 0, _ref = data.length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; m = 0 <= _ref ? ++_i : --_i) {
-            for (d = _j = 0, _ref1 = dimension - 1; 0 <= _ref1 ? _j <= _ref1 : _j >= _ref1; d = 0 <= _ref1 ? ++_j : --_j) {
+          for (m = _k = 0, _ref = data.length - 1; 0 <= _ref ? _k <= _ref : _k >= _ref; m = 0 <= _ref ? ++_k : --_k) {
+            for (d = _l = 0, _ref1 = dimension - 1; 0 <= _ref1 ? _l <= _ref1 : _l >= _ref1; d = 0 <= _ref1 ? ++_l : --_l) {
               if ((o = data[m][keys[d]]) != null) {
                 if ((c = o.comment) != null) {
                   comments.push({
@@ -149,7 +221,7 @@
           }
           hours = (function() {
             _results = [];
-            for (var _k = 0, _ref2 = dimension - 1; 0 <= _ref2 ? _k <= _ref2 : _k >= _ref2; 0 <= _ref2 ? _k++ : _k--){ _results.push(_k); }
+            for (var _m = 0, _ref2 = dimension - 1; 0 <= _ref2 ? _m <= _ref2 : _m >= _ref2; 0 <= _ref2 ? _m++ : _m--){ _results.push(_m); }
             return _results;
           }).apply(this);
           minVal = 0;

@@ -9,50 +9,9 @@ window.plugins.radar =
          </style>
         '''
 
-        limit =
-          "Carcinogenicity": 7
-          "Acute Toxicity": 7
-          "Chronic Toxicity": 7
-          "Reproductive / Endocrine Disrupter Toxicity": 4
-          "Chemistry Total": 25
-          "Energy Intensity": 10
-          "GHG Emissions Intensity": 15
-          "Energy / GHG Emissions Total": 25
-          "Water Intensity": 18
-          "Land Use Intensity": 7
-          "Water / Land Use Total": 25
-          "Hazardous Waste": 10
-          "MSW": 6.25
-          "Industrial Waste": 5
-          "Recyclable / Compostable Waste": 2.5
-          "Mineral Waste": 1.25
-          "Physical Waste Total": 25
-          "Total Score": 100
-
-        limitsFromData = (data) ->
-          max = -Infinity
-          keys = {}
-          for d in data
-            for k,v of d
-              keys[k] = 1
-              max = if v>max then v else max
-          limit = {}
-          for k,v of keys
-            limit[k] = max
-
-        candidates = $(".item:lt(#{$('.item').index(div)})")
-        if (who = candidates.filter ".radar-source").size()
-          limitsFromData (data = (d.radarData() for d in who))
-        else if (who = candidates.filter ".data").size()
-          who = who.filter (d) -> $(this).data('item').data.length == 1
-          data = ($(d).data('item').data[0] for d in who)
-        else throw "Can't find suitable data"
-
-        # if item.text?
-        #   for line in item.text.split /\n/
-        #     console.log ['line', line]
-
-        keys = Object.keys(limit)
+        limit = {}
+        keys = []
+        max = -Infinity
 
         value = (obj) ->
           return NaN unless obj?
@@ -64,8 +23,87 @@ window.plugins.radar =
             when Function then obj()
             else NaN
 
+        parseText = (text) ->
+          for line in text.split "\n"
+            if args = line.match /^([0-9.eE-]+) +([\w \/%(){},&-]+)$/
+              keys.push args[2]
+              limit[args[2]] = +args[1]
+            else if args = line.match /^([0-9\.eE-]+)$/
+              max = +args[1]
+            else if args = line.match /^ *([\w \/%(){},&-]+)$/
+              keys.push args[1]
+          wiki.log 'radar parseText', keys, limit, max
+
+        limitsFromData = (data) ->
+          limit = {}
+          for d in data
+            for k,v of d
+              vv = value v
+              unless isNaN vv
+                wiki.log 'limits from data keys', k, v, vv
+                if limit[k]
+                  limit[k] = vv if vv > limit[k]
+                else
+                  limit[k] = vv
+          wiki.log 'limits from data', limit
+
+        candidates = $(".item:lt(#{$('.item').index(div)})")
+        if (who = candidates.filter ".radar-source").size()
+          data = (d.radarData() for d in who)
+        else if (who = candidates.filter ".data").size()
+          rows = who.filter (d) -> $(this).data('item').data.length == 1
+          if rows.length > 0
+            data = ($(d).data('item').data[0] for d in rows)
+          else
+            data = who.last().data('item').data
+        else throw "Can't find suitable data"
+        wiki.log 'radar data', data
+
+        if item.text? and item.text.match(/\S/)
+          parseText item.text
+          if _.isEmpty limit
+            if max == -Infinity
+              limitsFromData data
+            else
+              if _.isEmpty keys
+                limitsFromData data
+                keys = Object.keys limit
+              limit[k] = max for k in keys
+        else
+          limitsFromData data
+          keys = Object.keys limit
+        wiki.log 'radar limit', limit
+
+        complete = (object) ->
+          for key in keys
+            return false unless object[key]?
+          true
+
+        merged = []
+        merging = {}
+        for each in data
+          _.extend merging, each
+          if complete(merging)
+            merged.push merging
+            merging = {}
+        data = merged
+
         percents = (obj) ->
+          for k in keys
+            unless obj[k]?
+              throw "Missing value for '#{k}'"
           (100.0*value(obj[k])/limit[k] for k in keys.concat(keys[0]))
+
+        div.dblclick (e) ->
+          if e.shiftKey
+            wiki.dialog "JSON for Radar plugin",  $('<pre/>').text(JSON.stringify(item, null, 2))
+          else
+            unless item.text? and item.text.match(/\S/)
+              item.text = ("#{limit[k]} #{k}" for k in keys).join "\n"
+            wiki.textEditor div, item
+
+        # div.append "<p>#{JSON.stringify(keys)}</p>"
+        # div.append "<p>#{JSON.stringify(limit)}</p>"
 
         # Adapted from https://gist.github.com/1630683
 
@@ -88,6 +126,7 @@ window.plugins.radar =
          "translate(#{radius maxVal * percent/100 })"
 
         series = (percents(d) for d in data)
+        wiki.log 'radar series', series
         comments = []
         for m in [0..data.length-1]
           for d in [0..dimension-1]

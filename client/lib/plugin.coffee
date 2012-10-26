@@ -23,7 +23,7 @@ plugin.get = wiki.getPlugin = (name, callback) ->
     getScript "/plugins/#{name}.js", () ->
       callback(window.plugins[name])
 
-plugin.do = wiki.doPlugin = (div, item) ->
+plugin.do = wiki.doPlugin = (div, item, done=->) ->
   error = (ex) ->
     errorElement = $("<div />").addClass('error')
     errorElement.text(ex.toString())
@@ -34,10 +34,18 @@ plugin.do = wiki.doPlugin = (div, item) ->
   plugin.get item.type, (script) ->
     try
       throw TypeError("Can't find plugin for '#{item.type}'") unless script?
-      script.emit div, item
-      script.bind div, item
+      if script.emit.length > 2
+        script.emit div, item, ->
+          script.bind div, item
+          done()
+      else
+        script.emit div, item
+        script.bind div, item
+        done()
     catch err
+      wiki.log 'plugin error', err
       error(err)
+      done()
 
 wiki.registerPlugin = (pluginName,pluginFn)->
   window.plugins[pluginName] = pluginFn($)
@@ -58,3 +66,11 @@ window.plugins =
     bind: (div, item) ->
       div.dblclick -> wiki.textEditor div, item
       div.find('img').dblclick -> wiki.dialog item.text, this
+  future:
+    emit: (div, item) ->
+      div.append """#{item.text}<br><br><button class="create">create</button> new blank page"""
+      if (info = wiki.neighborhood[location.host])? and info.sitemap?
+        for item in info.sitemap
+          if item.slug.match /-template$/
+            div.append """<br><button class="create" data-slug=#{item.slug}>create</button> from #{wiki.resolveLinks "[[#{item.title}]]"}"""
+    bind: (div, item) ->
