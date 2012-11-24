@@ -61,8 +61,7 @@ window.plugins =
   image:
     emit: (div, item) ->
       item.text ||= item.caption
-      wiki.log 'image', item
-      div.append "<img src=\"#{item.url}\"> <p>#{wiki.resolveLinks(item.text)}</p>"
+      div.append "<img class=thumbnail src=\"#{item.url}\"> <p>#{wiki.resolveLinks(item.text)}</p>"
     bind: (div, item) ->
       div.dblclick -> wiki.textEditor div, item
       div.find('img').dblclick -> wiki.dialog item.text, this
