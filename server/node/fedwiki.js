@@ -13,13 +13,13 @@ var path = require('path')
   , es = require('event-stream')
   , JSONStream = require('JSONStream')
   , filed = require('filed')
+  , Pasta = require('pasta')
   // local modules
   , setup = require('./lib/setup')
-  , dispatch = require('./lib/dispatch')
+//  , dispatch = require('./lib/dispatch')
   , settings = require('./lib/settings')
   , pageModule = require('./lib/pageModule')
   , render = require('./lib/render')
-  ;
 
 module.exports = exports = function (opts) {
   var app = http.createServer(handler)
@@ -27,6 +27,8 @@ module.exports = exports = function (opts) {
   opts = settings(opts)
 
   var pageHandler = pageModule(opts)
+
+  var p = Pasta()
 
   // The key is the event that router emits when the route matches
   var routes =
@@ -58,9 +60,9 @@ module.exports = exports = function (opts) {
 
   router.on('*', ecstatic(opts.c))
 
-  router.on('', redirect('/view/' + opts.s))
+  router.on('', p.redirect('/view/' + opts.s))
 
-  router.on('revd', notyet)
+  router.on('revd', p.notyet)
   router.on('full', function (req, res, loc) {
     var server, slug, pages = []
     loc = loc.split('/')
@@ -76,7 +78,7 @@ module.exports = exports = function (opts) {
 
   router.on('factory', function (req, res) {
     // TODO: make this two requests, for the catalog and factory.
-    var onerr = errorHandler(res)
+    var onerr = p.errorHandler(res)
     res.statusCode = 200
     res.setHeader('Content-Type', 'application/javascript')
     function cb (e, catalog) {
@@ -97,21 +99,21 @@ module.exports = exports = function (opts) {
     })
   })
 
-  router.on('json', dispatch(
+  router.on('json', p.dispatch(
     { 'GET': function (req, res, slug) { pageHandler(slug).pipe(res) }
     }
   ))
 
   var favicon = { 'GET': ecstatic(opts.stat) }
-  router.on('favicon.png', dispatch(favicon))
-  router.on('random.png', notyet)
+  router.on('favicon.png', p.dispatch(favicon))
+  router.on('random.png', p.notyet)
 
   // SYSTEM routes
-  router.on('changes', notyet)
+  router.on('changes', p.notyet)
 
-  router.on('system/sitemap.json', jsonCORS)
+  router.on('system/sitemap.json', p.jsonCORS)
   router.on('system/sitemap.json', function (req, res) {
-    var onerr = errorHandler(res)
+    var onerr = p.errorHandler(res)
     function cb (e, sitemap) {
       if (e) return onerr(e)
       res.end(JSON.stringify(sitemap, null, 2))
@@ -129,14 +131,14 @@ module.exports = exports = function (opts) {
     })
   })
 
-  router.on('system/plugins.json', jsonCORS)
+  router.on('system/plugins.json', p.jsonCORS)
   router.on('system/slugs.json', function (req, res) {
     pageHandler.list(function (e, files) {
       res.end(JSON.stringify(files, null, 2))
     })
   })
 
-  router.on('system/plugins.json', jsonCORS)
+  router.on('system/plugins.json', p.jsonCORS)
   router.on('system/plugins.json', function (req, res) {
     var pluginDir = opts.c + '/plugins'
     glob(pluginDir + '/*/', function (e, files) {
@@ -149,7 +151,7 @@ module.exports = exports = function (opts) {
 
   // ACTION handler
   router.on('action', function (req, res, slug) {
-    var onerr = errorHandler(res)
+    var onerr = p.errorHandler(res)
   })
 
   // REMOTE routes
@@ -161,52 +163,18 @@ module.exports = exports = function (opts) {
     request.get('http://' + server + '/favicon.png').pipe(res)
   })
 
-  router.on('data', notyet)
-  router.on('html', notyet)
-  router.on('submit', notyet)
-  router.on('logout', notyet)
-  router.on('login', notyet)
-  router.on('login/openid/complete', notyet)
-
-  function jsonCORS (req, res) {
-    res.statusCode = 200
-    res.setHeader('Content-Type', 'application/json')
-    res.setHeader('Access-Control-Allow-Origin', '*')
-  }
-
-  function notyet (req, res) {
-    console.log('You called a route that is not yet implemented')
-    res.statusCode = 404
-    res.end('not found')
-  }
-
+  router.on('data', p.notyet)
+  router.on('html', p.notyet)
+  router.on('submit', p.notyet)
+  router.on('logout', p.notyet)
+  router.on('login', p.notyet)
+  router.on('login/openid/complete', p.notyet)
 
   function handler (req, res) {
     router.dispatch(req, res)
   }
 
-  function errorHandler (res) {
-    var fired = false
-    return function (error) {
-      if (!fired) {
-        fired = true
-        res.statusCode = 500
-        res.end('Server ' + error)
-      } else {
-        console.log("Allready fired " + error)
-      }
-    }
-  }
-
-  function redirect (loc) {
-    return function (req, res) {
-      res.statusCode = 302
-      res.setHeader('location', loc)
-      res.end()
-    }
-  }
-
-  console.log(opts)
+  p.l(opts)
   app.listen(opts.p)
 
   return app
