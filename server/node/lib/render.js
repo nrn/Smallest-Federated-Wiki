@@ -1,5 +1,15 @@
 var f = require('flates')
   , util = require('util')
+  , js =
+      [ '/js/jquery-1.7.1.min.js'
+      , '/js/jquery-ui-1.8.16.custom.min.js'
+      , '/js/underscore-min.js'
+      , '/client.js'
+      ]
+  , css =
+      [ '/style.css'
+      , '/js/jquery-ui-1.8.16.custom.css'
+      ]
 
 module.exports = build
 
@@ -15,8 +25,8 @@ function build (pages, loginStatus) {
         , name:'viewport'
         }) +
       f.link({ id:'favicon', href:'/favicon.png', rel:'icon', type:'image/png' }) +
-      stylesheets() +
-      scripts()
+      stylesheets(css) +
+      scripts(js)
       //f.comment(
       //  'This wiki is served by the SFW node server, the source can be found at' +
       //  'https://github.com/WardCunningham/Smallest-Federated-Wiki' +
@@ -52,23 +62,13 @@ function build (pages, loginStatus) {
   )
 }
 
-function scripts () {
-  var include =
-    [ '/js/jquery-1.7.1.min.js'
-    , '/js/jquery-ui-1.8.16.custom.min.js'
-    , '/js/underscore-min.js'
-    , '/client.js'
-    ]
+function scripts (include) {
   return include.map(function (item) {
     return f.script({ src: item, type: 'application/javascript' })
   }).join('')
 }
 
-function stylesheets () {
-  var include =
-    [ '/style.css'
-    , '/js/jquery-ui-1.8.16.custom.css'
-    ]
+function stylesheets (include) {
   return include.map(function (item) {
     return f.link({ href: item, rel: 'stylesheet', type: 'text/css' })
   }).join('')

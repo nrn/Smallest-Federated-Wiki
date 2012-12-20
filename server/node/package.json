@@ -17,10 +17,10 @@
   , "pasta": "*"
   }
 , "devDependencies":
-  { "tap": "*"
+  { "tape": "*"
   }
 , "scripts":
-  { "test": "./node_modules/.bin/tap t/"
+  { "test": "for f in ./t/*.js; do node $f; done"
   , "start": "./bin/cli.js"
   }
 }

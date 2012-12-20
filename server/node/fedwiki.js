@@ -78,23 +78,22 @@ module.exports = exports = function (opts) {
 
   router.on('factory', function (req, res) {
     // TODO: make this two requests, for the catalog and factory.
-    var onerr = p.errorHandler(res)
     res.statusCode = 200
     res.setHeader('Content-Type', 'application/javascript')
     function cb (e, catalog) {
-      if (e) return onerr(e)
+      if (e) return res.e(e)
       res.write('window.catalog = ' + JSON.stringify(catalog) + ';')
       fs.createReadStream(opts.c + '/plugins/meta-factory.js').pipe(res)
     }
     glob(opts.c + '/**/factory.json', function (e, files) {
       if (e) return cb(e)
       files = files.map(function (file) {
-        return fs.createReadStream(file).on('error', onerr).pipe(
+        return fs.createReadStream(file).on('error', res.e).pipe(
           JSONStream.parse(false).on('root', function (el) { this.emit('data', el) })
         )
       })
       es.concat.apply(null, files)
-        .on('error', onerr)
+        .on('error', res.e)
         .pipe(es.writeArray(cb))
     })
   })
@@ -113,16 +112,15 @@ module.exports = exports = function (opts) {
 
   router.on('system/sitemap.json', p.jsonCORS)
   router.on('system/sitemap.json', function (req, res) {
-    var onerr = p.errorHandler(res)
     function cb (e, sitemap) {
-      if (e) return onerr(e)
+      if (e) return res.e(e)
       res.end(JSON.stringify(sitemap, null, 2))
     }
 
     glob(opts.db + '/**', function (e, files) {
       files = files.map(function (file) {
         var stream = filed(file)
-        stream.on('error', onerr)
+        stream.on('error', res.e)
         return stream.pipe(
           JSONStream.parse(false).on('root', function (el) { this.emit('data', { slug: file, title: el.title })})
         )
@@ -151,7 +149,6 @@ module.exports = exports = function (opts) {
 
   // ACTION handler
   router.on('action', function (req, res, slug) {
-    var onerr = p.errorHandler(res)
   })
 
   // REMOTE routes

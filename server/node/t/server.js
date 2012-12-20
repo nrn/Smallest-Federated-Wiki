@@ -2,7 +2,7 @@
 
 var qs = require('querystring')
   , cp = require('child_process')
-  , test = require('tap').test
+  , test = require('tape')
   , request = require('request')
   , server = require('../fedwiki')
   , serverE = require('../../express/index.js')
