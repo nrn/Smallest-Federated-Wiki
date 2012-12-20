@@ -8,6 +8,7 @@ refresh = require('./refresh.coffee')
 require ('./dom.coffee')
 
 resolveLinks = wiki.resolveLinks = util.resolveLinks
+wiki.createSynopsis = util.createSynopsis
 
 Array::last = ->
   this[@length - 1]
@@ -43,7 +44,7 @@ $ ->
 # FUNCTIONS used by plugins and elsewhere
 
   wiki.log = (things...) ->
-    console.log things if console?.log?
+    console.log things... if console?.log?
 
   wiki.resolutionContext = []
   resolveFrom = wiki.resolveFrom = (addition, callback) ->
@@ -68,7 +69,7 @@ $ ->
       actionElement.insertBefore(controls)
     else
       actionElement.appendTo(journalElement)
-    if action.type == 'fork'
+    if action.type == 'fork' and action.site?
       actionElement
         .css("background-image", "url(//#{action.site}/favicon.png)")
         .attr("href", "//#{action.site}/#{pageElement.attr('id')}.html")
@@ -220,10 +221,13 @@ $ ->
 
   $(document)
     .ajaxError (event, request, settings) ->
+      return if request.status == 0 or request.status == 404
       wiki.log 'ajax error', event, request, settings
-      return if request.status == 0
-      msg = "<li class='error'>Error on #{settings.url}: #{request.responseText}</li>"
-      $('.main').prepend msg unless request.status == 404
+      $('.main').prepend """
+        <li class='error'>
+          Error on #{settings.url}: #{request.responseText}
+        </li>
+      """
 
   getTemplate = (slug, done) ->
     return done(null) unless slug
@@ -270,8 +274,7 @@ $ ->
     .delegate '.action', 'click', (e) ->
       e.preventDefault()
       $action = $(e.target)
-      if $action.is('.fork')
-        name = $(e.target).data('slug')
+      if $action.is('.fork') and (name = $action.data('slug'))?
         pageHandler.context = [$action.data('site')]
         finishClick e, name
       else
@@ -286,8 +289,14 @@ $ ->
 
     .delegate '.fork-page', 'click', (e) ->
       pageElement = $(e.target).parents('.page')
-      return unless (remoteSite = pageElement.data('site'))?
-      pageHandler.put pageElement, {type:'fork', site: remoteSite}
+      if pageElement.hasClass('local')
+        unless useLocalStorage()
+          item = pageElement.data('data')
+          pageElement.removeClass('local')
+          pageHandler.put pageElement, {type: 'fork', item} # push
+      else
+        if (remoteSite = pageElement.data('site'))?
+          pageHandler.put pageElement, {type:'fork', site: remoteSite} # pull
 
     .delegate '.action', 'hover', ->
       id = $(this).attr('data-id')
@@ -322,9 +331,16 @@ $ ->
     $("footer input:first").val $(this).attr('data-provider')
     $("footer form").submit()
 
-# CODE that gets the web page application started
-  state.first()
 
-  $('.page').each refresh
-  active.set($('.page').last())
+  if ($firstPage = $('.page:first')).data('serverGenerated')
+    # if the page appears to be a server generated page, but we're running javascript then
+    # redirect to the full-featured client-side version of the page.
+    # E.G. visiting /welcome-visitors.html with a JS-enabled browser will bounce you to /view/welcome-visitors
+    window.location = "/view/#{$firstPage.attr('id')}"
+  else
+    # CODE that gets the web page application started
+    state.first()
+
+    $('.page').each refresh
+    active.set($('.page').last())
 

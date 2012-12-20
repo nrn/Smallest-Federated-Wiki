@@ -95,7 +95,8 @@ footer {
   margin-bottom: 0.4em;
   background: #eeeeee;
   padding: 0.8em;
-  width: 42%; }
+  width: 42%;
+ }
 
 .image .thumbnail {
   width: 100%; }
@@ -188,10 +189,10 @@ footer {
   color: gray;
   font-size: 70%; }
 
-.federatedWiki .reference {
-  margin-top: 0;
-  color: gray;
-  font-size: 70%; }
+image.remote {
+  width:16px;
+  height:26px;
+}
 
 p.readout {
   text-align: center;
@@ -218,7 +219,7 @@ p.readout {
     z-index: 10; }
 
 .page.local {
-  border: 3px solid #EE8;
+  box-shadow: inset 0px 0px 40px 0px rgba(220,180,0,.7);
 }
 
 .factory,

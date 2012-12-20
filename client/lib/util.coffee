@@ -1,4 +1,6 @@
-module.exports = util = {}
+module.exports = wiki.util = util = {}
+
+util.createSynopsis = require('./synopsis')
 
 util.symbols =
   create: '☼'
@@ -15,7 +17,7 @@ util.resolveLinks = (string) ->
     "<a class=\"internal\" href=\"/#{slug}.html\" data-page-name=\"#{slug}\" title=\"#{wiki.resolutionContext.join(' => ')}\">#{name}</a>"
   string
     .replace(/\[\[([^\]]+)\]\]/gi, renderInternalLink)
-    .replace(/\[(http.*?) (.*?)\]/gi, """<a class="external" target="_blank" href="$1">$2 <img src="/images/external-link-ltr-icon.png"></a>""")
+    .replace(/\[(http.*?) (.*?)\]/gi, """<a class="external" target="_blank" href="$1" title="$1" rel="nofollow">$2 <img src="/images/external-link-ltr-icon.png"></a>""")
 
 util.randomByte = ->
   (((1+Math.random())*0x100)|0).toString(16).substring(1)
@@ -98,17 +100,3 @@ util.setCaretPosition = (jQueryElement, caretPos) ->
       el.setSelectionRange caretPos, caretPos
     el.focus()
 
-util.createSynopsis = (page) ->
-  synopsis = page.synopsis
-  if page? && page.story?
-    p1 = page.story[0]
-    p2 = page.story[1]
-    synopsis ||= p1.text if p1 && p1.type == 'paragraph'
-    synopsis ||= p2.text if p2 && p2.type == 'paragraph'
-    synopsis ||= p1.text if p1 && p1.text?
-    synopsis ||= p2.text if p2 && p2.text?
-    synopsis ||= page.story? && "A page with #{page.story.length} items."
-  else
-    synopsis = 'A page with no story.'
-  return synopsis
- 

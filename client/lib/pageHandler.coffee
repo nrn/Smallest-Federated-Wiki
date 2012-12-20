@@ -59,11 +59,6 @@ recursiveGet = ({pageInformation, whenGotten, whenNotGotten, localContext}) ->
 
 pageHandler.get = ({whenGotten,whenNotGotten,pageInformation}  ) ->
 
-  wiki.log 'pageHandler.get', pageInformation.site, pageInformation.slug, pageInformation.rev, 'context', pageHandler.context.join ' => '
-
-  if pageInformation.wasServerGenerated
-    return whenGotten( null )
-
   unless pageInformation.site
     if localPage = pageFromLocalStorage(pageInformation.slug)
       localPage = revision.create pageInformation.rev, localPage if pageInformation.rev
@@ -101,8 +96,11 @@ pushToServer = (pageElement, pagePutInfo, action) ->
       'action': JSON.stringify(action)
     success: () ->
       wiki.addToJournal pageElement.find('.journal'), action
+      if action.type == 'fork' # push
+        localStorage.removeItem pageElement.attr('id')
+        state.setUrl
     error: (xhr, type, msg) ->
-      wiki.log "ajax error callback", type, msg
+      wiki.log "pageHandler.put ajax error callback", type, msg
 
 pageHandler.put = (pageElement, action) ->
 
@@ -120,7 +118,7 @@ pageHandler.put = (pageElement, action) ->
     local: pageElement.hasClass('local')
   }
   forkFrom = pagePutInfo.site
-  wiki.log 'pageHandler.put', pageElement, action, 'pagePutInfo', pagePutInfo, 'forkFrom', forkFrom
+  wiki.log 'pageHandler.put', action, pagePutInfo
 
   # detect when fork to local storage
   if wiki.useLocalStorage()
