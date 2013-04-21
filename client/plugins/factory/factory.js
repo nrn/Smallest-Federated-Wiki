@@ -11,7 +11,7 @@
         var info, menu, menuItem, name, _i, _len, _ref, _ref1;
         menu = div.find('p').append("<br>Or Choose a Plugin");
         menuItem = function(title, name) {
-          return menu.append("<li>\n  <a class=\"menu\" href=\"#\" title=\"" + title + "\">\n    " + name + "\n  </a>\n</li>");
+          return menu.append("<li><a class=\"menu\" href=\"#\" title=\"" + title + "\">" + name + "</a></li>");
         };
         if (Array.isArray(window.catalog)) {
           _ref = window.catalog;
@@ -84,10 +84,10 @@
       return div.bind("drop", function(dropEvent) {
         var dt, found, ignore, origin, punt, readFile, url;
         punt = function(data) {
+          item.prompt = "<b>Unexpected Item</b><br>We can't make sense of the drop.<br>" + (JSON.stringify(data)) + "<br>Try something else or see [[About Factory Plugin]].";
+          data.userAgent = navigator.userAgent;
+          item.punt = data;
           wiki.log('factory punt', dropEvent);
-          item.type = 'data';
-          item.text = "Unexpected Item";
-          item.data = data;
           return syncEditAction();
         };
         readFile = function(file) {
@@ -135,7 +135,7 @@
         };
         dropEvent.preventDefault();
         if ((dt = dropEvent.originalEvent.dataTransfer) != null) {
-          if ((dt.types != null) && (__indexOf.call(dt.types, 'text/uri-list') >= 0 || __indexOf.call(dt.types, 'text/x-moz-url') >= 0)) {
+          if ((dt.types != null) && (__indexOf.call(dt.types, 'text/uri-list') >= 0 || __indexOf.call(dt.types, 'text/x-moz-url') >= 0) && !(__indexOf.call(dt.types, 'Files') >= 0)) {
             url = dt.getData('URL');
             if (found = url.match(/^http:\/\/([a-zA-Z0-9:.-]+)(\/([a-zA-Z0-9:.-]+)\/([a-z0-9-]+(_rev\d+)?))+$/)) {
               wiki.log('factory drop url', found);

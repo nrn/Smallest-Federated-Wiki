@@ -5,11 +5,7 @@ window.plugins.factory =
       menu = div.find('p').append "<br>Or Choose a Plugin"
       menuItem = (title, name) ->
         menu.append """
-          <li>
-            <a class="menu" href="#" title="#{title}">
-              #{name}
-            </a>
-          </li>
+          <li><a class="menu" href="#" title="#{title}">#{name}</a></li>
         """
       if Array.isArray window.catalog
         menuItem(info.title, info.name) for info in window.catalog
@@ -59,10 +55,10 @@ window.plugins.factory =
     div.bind "drop", (dropEvent) ->
 
       punt = (data) ->
+        item.prompt = "<b>Unexpected Item</b><br>We can't make sense of the drop.<br>#{JSON.stringify data}<br>Try something else or see [[About Factory Plugin]]."
+        data.userAgent = navigator.userAgent
+        item.punt = data
         wiki.log 'factory punt', dropEvent
-        item.type = 'data'
-        item.text = "Unexpected Item"
-        item.data = data
         syncEditAction()
 
       readFile = (file) ->
@@ -101,7 +97,7 @@ window.plugins.factory =
 
       dropEvent.preventDefault()
       if (dt = dropEvent.originalEvent.dataTransfer)?
-        if dt.types? and ('text/uri-list' in dt.types or 'text/x-moz-url' in dt.types)
+        if dt.types? and ('text/uri-list' in dt.types or 'text/x-moz-url' in dt.types) and not ('Files' in dt.types)
           url = dt.getData 'URL'
           if found = url.match /^http:\/\/([a-zA-Z0-9:.-]+)(\/([a-zA-Z0-9:.-]+)\/([a-z0-9-]+(_rev\d+)?))+$/
             wiki.log 'factory drop url', found

@@ -3,6 +3,8 @@ pageHandler = require('./pageHandler.coffee')
 plugin = require('./plugin.coffee')
 state = require('./state.coffee')
 neighborhood = require('./neighborhood.coffee')
+addToJournal = require('./addToJournal.coffee')
+wiki = require('./wiki.coffee')
 
 handleDragging = (evt, ui) ->
   itemElement = ui.item
@@ -63,43 +65,83 @@ createFactory = ($page) ->
   before = wiki.getItem(beforeElement)
   pageHandler.put $page, {item: item, id: item.id, type: "add", after: before?.id}
 
-buildPageHeader = ({title,tooltip,header_href,favicon_src})->
-  """<h1 title="#{tooltip}"><a href="#{header_href}"><img src="#{favicon_src}" height="32px" class="favicon"></a> #{title}</h1>"""
+buildPageHeader = ({page,tooltip,header_href,favicon_src})->
+  tooltip += "\n#{page.plugin} plugin" if page.plugin
+  """<h1 title="#{tooltip}"><a href="#{header_href}"><img src="#{favicon_src}" height="32px" class="favicon"></a> #{page.title}</h1>"""
 
-emitHeader = ($page, page) ->
+emitHeader = ($header, $page, page) ->
   site = $page.data('site')
   isRemotePage = site? and site != 'local' and site != 'origin' and site != 'view'
   header = ''
 
+  viewHere = if wiki.asSlug(page.title) is 'welcome-visitors' then ""
+  else "/view/#{wiki.asSlug(page.title)}"
   pageHeader = if isRemotePage
     buildPageHeader
       tooltip: site
-      header_href: "//#{site}"
+      header_href: "//#{site}/view/welcome-visitors#{viewHere}"
       favicon_src: "http://#{site}/favicon.png"
-      title: page.title
+      page: page
   else
     buildPageHeader
       tooltip: location.host
-      header_href: "/"
+      header_href: "/view/welcome-visitors#{viewHere}"
       favicon_src: "/favicon.png"
-      title: page.title
+      page: page
 
-  $page.append( pageHeader )
+  $header.append( pageHeader )
   
   unless isRemotePage
     $('img.favicon',$page).error (e)->
       plugin.get 'favicon', (favicon) ->
         favicon.create()
 
-  if (rev = $page.attr('id').split('_rev')[1])?
-    date = page.journal[page.journal.length-1].date
-    $page.addClass('ghost').data('rev',rev).append $ """
+  if $page.attr('id').match /_rev/
+    rev = page.journal.length-1
+    date = page.journal[rev].date
+    $page.addClass('ghost').data('rev',rev)
+    $header.append $ """
       <h2 class="revision">
         <span>
           #{if date? then util.formatDate(date) else "Revision #{rev}"}
         </span>
       </h2>
     """
+
+emitTwins = wiki.emitTwins = ($page) ->
+  page = $page.data 'data'
+  site = $page.data('site') or window.location.host
+  site = window.location.host if site in ['view', 'origin']
+  slug = wiki.asSlug page.title
+  if (actions = page.journal?.length)? and (viewing = page.journal[actions-1]?.date)?
+    viewing = Math.floor(viewing/1000)*1000
+    bins = {newer:[], same:[], older:[]}
+    # {fed.wiki.org: [{slug: "happenings", title: "Happenings", date: 1358975303000, synopsis: "Changes here ..."}]}
+    for remoteSite, info of wiki.neighborhood
+      if remoteSite != site and info.sitemap?
+        for item in info.sitemap
+          if item.slug == slug
+            bin = if item.date > viewing then bins.newer
+            else if item.date < viewing then bins.older
+            else bins.same
+            bin.push {remoteSite, item}
+    twins = []
+    # {newer:[remoteSite: "fed.wiki.org", item: {slug: ..., date: ...}, ...]}
+    for legend, bin of bins
+      continue unless bin.length
+      bin.sort (a,b) ->
+        a.item.date < b.item.date
+      flags = for {remoteSite, item}, i in bin
+        break if i >= 8
+        """<img class="remote"
+          src="http://#{remoteSite}/favicon.png"
+          data-slug="#{slug}"
+          data-site="#{remoteSite}"
+          title="#{remoteSite}">
+        """
+      twins.push "#{flags.join '&nbsp;'} #{legend}"
+    $page.find('.twins').html """<p>#{twins.join ", "}</p>""" if twins
+
 renderPageIntoPageElement = (pageData,$page, siteFound) ->
   page = $.extend(util.emptyPage(), pageData)
   $page.data("data", page)
@@ -113,21 +155,27 @@ renderPageIntoPageElement = (pageData,$page, siteFound) ->
 
   wiki.resolutionContext = context
 
-  emitHeader $page, page
-
-  [$story, $journal, $footer] = ['story', 'journal', 'footer'].map (className) ->
+  [$twins, $header, $story, $journal, $footer] = ['twins', 'header', 'story', 'journal', 'footer'].map (className) ->
     $("<div />").addClass(className).appendTo($page)
+
+  emitHeader $header, $page, page
 
   emitItem = (i) ->
     return if i >= page.story.length
     item = page.story[i]
-    $item = $ """<div class="item #{item.type}" data-id="#{item.id}">"""
-    $story.append $item
-    plugin.do $item, item, -> emitItem i+1
+    if item?.type and item?.id
+      $item = $ """<div class="item #{item.type}" data-id="#{item.id}">"""
+      $story.append $item
+      plugin.do $item, item, -> emitItem i+1
+    else
+      $story.append $ """<div><p class="error">Can't make sense of story[#{i}]</p></div>"""
+      emitItem i+1
   emitItem 0
 
   for action in page.journal
-    wiki.addToJournal $journal, action
+    addToJournal $journal, action
+
+  emitTwins $page
 
   $journal.append """
     <div class="control-buttons">
@@ -147,8 +195,12 @@ wiki.buildPage = (data,siteFound,$page) ->
 
   if siteFound == 'local'
     $page.addClass('local')
-  else
+  else if siteFound
+    siteFound = 'origin' if siteFound is window.location.host
+    $page.addClass('remote') unless siteFound in ['view', 'origin']
     $page.data('site', siteFound)
+  if data.plugin?
+    $page.addClass('plugin')
 
   #TODO: avoid passing siteFound
   renderPageIntoPageElement( data, $page, siteFound )

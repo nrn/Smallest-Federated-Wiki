@@ -391,150 +391,100 @@ process.binding = function (name) {
 
 });
 
-require.define("/lib/util.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
-  var util;
+require.define("/lib/wiki.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
+  var createSynopsis, wiki,
+    __slice = [].slice;
 
-  module.exports = wiki.util = util = {};
+  createSynopsis = require('./synopsis.coffee');
 
-  util.createSynopsis = require('./synopsis');
-
-  util.symbols = {
-    create: '☼',
-    add: '+',
-    edit: '✎',
-    fork: '⚑',
-    move: '↕',
-    remove: '✕'
+  wiki = {
+    createSynopsis: createSynopsis
   };
 
-  util.resolveLinks = function(string) {
+  wiki.log = function() {
+    var things;
+    things = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+    if ((typeof console !== "undefined" && console !== null ? console.log : void 0) != null) {
+      return console.log.apply(console, things);
+    }
+  };
+
+  wiki.asSlug = function(name) {
+    return name.replace(/\s/g, '-').replace(/[^A-Za-z0-9-]/g, '').toLowerCase();
+  };
+
+  wiki.useLocalStorage = function() {
+    return $(".login").length > 0;
+  };
+
+  wiki.resolutionContext = [];
+
+  wiki.resolveFrom = function(addition, callback) {
+    wiki.resolutionContext.push(addition);
+    try {
+      return callback();
+    } finally {
+      wiki.resolutionContext.pop();
+    }
+  };
+
+  wiki.getData = function(vis) {
+    var idx, who;
+    if (vis) {
+      idx = $('.item').index(vis);
+      who = $(".item:lt(" + idx + ")").filter('.chart,.data,.calculator').last();
+      if (who != null) {
+        return who.data('item').data;
+      } else {
+        return {};
+      }
+    } else {
+      who = $('.chart,.data,.calculator').last();
+      if (who != null) {
+        return who.data('item').data;
+      } else {
+        return {};
+      }
+    }
+  };
+
+  wiki.getDataNodes = function(vis) {
+    var idx, who;
+    if (vis) {
+      idx = $('.item').index(vis);
+      who = $(".item:lt(" + idx + ")").filter('.chart,.data,.calculator').toArray().reverse();
+      return $(who);
+    } else {
+      who = $('.chart,.data,.calculator').toArray().reverse();
+      return $(who);
+    }
+  };
+
+  wiki.createPage = function(name, loc) {
+    if (loc && loc !== 'view') {
+      return $("<div/>").attr('id', name).attr('data-site', loc).addClass("page");
+    } else {
+      return $("<div/>").attr('id', name).addClass("page");
+    }
+  };
+
+  wiki.getItem = function(element) {
+    if ($(element).length > 0) {
+      return $(element).data("item") || $(element).data('staticItem');
+    }
+  };
+
+  wiki.resolveLinks = function(string) {
     var renderInternalLink;
     renderInternalLink = function(match, name) {
       var slug;
-      slug = util.asSlug(name);
+      slug = wiki.asSlug(name);
       return "<a class=\"internal\" href=\"/" + slug + ".html\" data-page-name=\"" + slug + "\" title=\"" + (wiki.resolutionContext.join(' => ')) + "\">" + name + "</a>";
     };
     return string.replace(/\[\[([^\]]+)\]\]/gi, renderInternalLink).replace(/\[(http.*?) (.*?)\]/gi, "<a class=\"external\" target=\"_blank\" href=\"$1\" title=\"$1\" rel=\"nofollow\">$2 <img src=\"/images/external-link-ltr-icon.png\"></a>");
   };
 
-  util.randomByte = function() {
-    return (((1 + Math.random()) * 0x100) | 0).toString(16).substring(1);
-  };
-
-  util.randomBytes = function(n) {
-    return ((function() {
-      var _i, _results;
-      _results = [];
-      for (_i = 1; 1 <= n ? _i <= n : _i >= n; 1 <= n ? _i++ : _i--) {
-        _results.push(util.randomByte());
-      }
-      return _results;
-    })()).join('');
-  };
-
-  util.formatTime = function(time) {
-    var am, d, h, mi, mo;
-    d = new Date((time > 10000000000 ? time : time * 1000));
-    mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
-    h = d.getHours();
-    am = h < 12 ? 'AM' : 'PM';
-    h = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    mi = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
-    return "" + h + ":" + mi + " " + am + "<br>" + (d.getDate()) + " " + mo + " " + (d.getFullYear());
-  };
-
-  util.formatDate = function(msSinceEpoch) {
-    var am, d, day, h, mi, mo, sec, wk, yr;
-    d = new Date(msSinceEpoch);
-    wk = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
-    mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
-    day = d.getDate();
-    yr = d.getFullYear();
-    h = d.getHours();
-    am = h < 12 ? 'AM' : 'PM';
-    h = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    mi = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
-    sec = (d.getSeconds() < 10 ? "0" : "") + d.getSeconds();
-    return "" + wk + " " + mo + " " + day + ", " + yr + "<br>" + h + ":" + mi + ":" + sec + " " + am;
-  };
-
-  util.formatElapsedTime = function(msSinceEpoch) {
-    var days, hrs, mins, months, msecs, secs, weeks, years;
-    msecs = new Date().getTime() - msSinceEpoch;
-    if ((secs = msecs / 1000) < 2) {
-      return "" + (Math.floor(msecs)) + " milliseconds ago";
-    }
-    if ((mins = secs / 60) < 2) {
-      return "" + (Math.floor(secs)) + " seconds ago";
-    }
-    if ((hrs = mins / 60) < 2) {
-      return "" + (Math.floor(mins)) + " minutes ago";
-    }
-    if ((days = hrs / 24) < 2) {
-      return "" + (Math.floor(hrs)) + " hours ago";
-    }
-    if ((weeks = days / 7) < 2) {
-      return "" + (Math.floor(days)) + " days ago";
-    }
-    if ((months = days / 31) < 2) {
-      return "" + (Math.floor(weeks)) + " weeks ago";
-    }
-    if ((years = days / 365) < 2) {
-      return "" + (Math.floor(months)) + " months ago";
-    }
-    return "" + (Math.floor(years)) + " years ago";
-  };
-
-  util.asSlug = function(name) {
-    return name.replace(/\s/g, '-').replace(/[^A-Za-z0-9-]/g, '').toLowerCase();
-  };
-
-  if (typeof wiki !== "undefined" && wiki !== null) {
-    wiki.asSlug = util.asSlug;
-  }
-
-  util.emptyPage = function() {
-    return {
-      title: 'empty',
-      story: [],
-      journal: []
-    };
-  };
-
-  util.getSelectionPos = function(jQueryElement) {
-    var el, iePos, sel;
-    el = jQueryElement.get(0);
-    if (document.selection) {
-      el.focus();
-      sel = document.selection.createRange();
-      sel.moveStart('character', -el.value.length);
-      iePos = sel.text.length;
-      return {
-        start: iePos,
-        end: iePos
-      };
-    } else {
-      return {
-        start: el.selectionStart,
-        end: el.selectionEnd
-      };
-    }
-  };
-
-  util.setCaretPosition = function(jQueryElement, caretPos) {
-    var el, range;
-    el = jQueryElement.get(0);
-    if (el != null) {
-      if (el.createTextRange) {
-        range = el.createTextRange();
-        range.move("character", caretPos);
-        range.select();
-      } else {
-        el.setSelectionRange(caretPos, caretPos);
-      }
-      return el.focus();
-    }
-  };
+  module.exports = wiki;
 
 }).call(this);
 
@@ -610,7 +560,7 @@ require.define("/test/util.coffee",function(require,module,exports,__dirname,__f
     });
     it('should slug a name', function() {
       var s;
-      s = util.asSlug('Welcome Visitors');
+      s = wiki.asSlug('Welcome Visitors');
       return expect(s).to.be('welcome-visitors');
     });
     it('should make emptyPage page with title, story and journal', function() {
@@ -630,6 +580,135 @@ require.define("/test/util.coffee",function(require,module,exports,__dirname,__f
       return expect(page.story).to.eql([]);
     });
   });
+
+}).call(this);
+
+});
+
+require.define("/lib/util.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
+  var util;
+
+  module.exports = wiki.util = util = {};
+
+  util.symbols = {
+    create: '☼',
+    add: '+',
+    edit: '✎',
+    fork: '⚑',
+    move: '↕',
+    remove: '✕'
+  };
+
+  util.randomByte = function() {
+    return (((1 + Math.random()) * 0x100) | 0).toString(16).substring(1);
+  };
+
+  util.randomBytes = function(n) {
+    return ((function() {
+      var _i, _results;
+      _results = [];
+      for (_i = 1; 1 <= n ? _i <= n : _i >= n; 1 <= n ? _i++ : _i--) {
+        _results.push(util.randomByte());
+      }
+      return _results;
+    })()).join('');
+  };
+
+  util.formatTime = function(time) {
+    var am, d, h, mi, mo;
+    d = new Date((time > 10000000000 ? time : time * 1000));
+    mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+    h = d.getHours();
+    am = h < 12 ? 'AM' : 'PM';
+    h = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    mi = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
+    return "" + h + ":" + mi + " " + am + "<br>" + (d.getDate()) + " " + mo + " " + (d.getFullYear());
+  };
+
+  util.formatDate = function(msSinceEpoch) {
+    var am, d, day, h, mi, mo, sec, wk, yr;
+    d = new Date(msSinceEpoch);
+    wk = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+    mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+    day = d.getDate();
+    yr = d.getFullYear();
+    h = d.getHours();
+    am = h < 12 ? 'AM' : 'PM';
+    h = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    mi = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
+    sec = (d.getSeconds() < 10 ? "0" : "") + d.getSeconds();
+    return "" + wk + " " + mo + " " + day + ", " + yr + "<br>" + h + ":" + mi + ":" + sec + " " + am;
+  };
+
+  util.formatElapsedTime = function(msSinceEpoch) {
+    var days, hrs, mins, months, msecs, secs, weeks, years;
+    msecs = new Date().getTime() - msSinceEpoch;
+    if ((secs = msecs / 1000) < 2) {
+      return "" + (Math.floor(msecs)) + " milliseconds ago";
+    }
+    if ((mins = secs / 60) < 2) {
+      return "" + (Math.floor(secs)) + " seconds ago";
+    }
+    if ((hrs = mins / 60) < 2) {
+      return "" + (Math.floor(mins)) + " minutes ago";
+    }
+    if ((days = hrs / 24) < 2) {
+      return "" + (Math.floor(hrs)) + " hours ago";
+    }
+    if ((weeks = days / 7) < 2) {
+      return "" + (Math.floor(days)) + " days ago";
+    }
+    if ((months = days / 31) < 2) {
+      return "" + (Math.floor(weeks)) + " weeks ago";
+    }
+    if ((years = days / 365) < 2) {
+      return "" + (Math.floor(months)) + " months ago";
+    }
+    return "" + (Math.floor(years)) + " years ago";
+  };
+
+  util.emptyPage = function() {
+    return {
+      title: 'empty',
+      story: [],
+      journal: []
+    };
+  };
+
+  util.getSelectionPos = function(jQueryElement) {
+    var el, iePos, sel;
+    el = jQueryElement.get(0);
+    if (document.selection) {
+      el.focus();
+      sel = document.selection.createRange();
+      sel.moveStart('character', -el.value.length);
+      iePos = sel.text.length;
+      return {
+        start: iePos,
+        end: iePos
+      };
+    } else {
+      return {
+        start: el.selectionStart,
+        end: el.selectionEnd
+      };
+    }
+  };
+
+  util.setCaretPosition = function(jQueryElement, caretPos) {
+    var el, range;
+    el = jQueryElement.get(0);
+    if (el != null) {
+      if (el.createTextRange) {
+        range = el.createTextRange();
+        range.move("character", caretPos);
+        range.select();
+      } else {
+        el.setSelectionRange(caretPos, caretPos);
+      }
+      return el.focus();
+    }
+  };
 
 }).call(this);
 
@@ -729,8 +808,6 @@ require.define("/test/pageHandler.coffee",function(require,module,exports,__dirn
   wiki.useLocalStorage = function() {
     return false;
   };
-
-  wiki.addToJournal = function() {};
 
   describe('pageHandler.get', function() {
     var genericPageData, genericPageInformation, pageInformationWithoutSite;
@@ -836,13 +913,11 @@ require.define("/test/pageHandler.coffee",function(require,module,exports,__dirn
           id: 1
         }
       };
-      wiki.addToJournal = function() {
-        expect(jQuery.ajax.args[0][0].data).to.eql({
-          action: JSON.stringify(action)
-        });
-        return done();
-      };
-      return pageHandler.put($('#pageHandler3'), action);
+      pageHandler.put($('#pageHandler3'), action);
+      expect(jQuery.ajax.args[0][0].data).to.eql({
+        action: JSON.stringify(action)
+      });
+      return done();
     });
     return after(function() {
       return jQuery.ajax.restore();
@@ -854,13 +929,15 @@ require.define("/test/pageHandler.coffee",function(require,module,exports,__dirn
 });
 
 require.define("/lib/pageHandler.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
-  var pageFromLocalStorage, pageHandler, pushToLocal, pushToServer, recursiveGet, revision, state, util;
+  var addToJournal, pageFromLocalStorage, pageHandler, pushToLocal, pushToServer, recursiveGet, revision, state, util;
 
-  util = require('./util');
+  util = require('./util.coffee');
 
-  state = require('./state');
+  state = require('./state.coffee');
 
-  revision = require('./revision');
+  revision = require('./revision.coffee');
+
+  addToJournal = require('./addToJournal.coffee');
 
   module.exports = pageHandler = {};
 
@@ -990,7 +1067,7 @@ require.define("/lib/pageHandler.coffee",function(require,module,exports,__dirna
       return $(this).data("item");
     }).get();
     localStorage[pagePutInfo.slug] = JSON.stringify(page);
-    return wiki.addToJournal(pageElement.find('.journal'), action);
+    return addToJournal(pageElement.find('.journal'), action);
   };
 
   pushToServer = function(pageElement, pagePutInfo, action) {
@@ -1001,7 +1078,7 @@ require.define("/lib/pageHandler.coffee",function(require,module,exports,__dirna
         'action': JSON.stringify(action)
       },
       success: function() {
-        wiki.addToJournal(pageElement.find('.journal'), action);
+        addToJournal(pageElement.find('.journal'), action);
         if (action.type === 'fork') {
           localStorage.removeItem(pageElement.attr('id'));
           return state.setUrl;
@@ -1052,10 +1129,11 @@ require.define("/lib/pageHandler.coffee",function(require,module,exports,__dirna
       pageElement.find('h1 img').attr('src', '/favicon.png');
       pageElement.find('h1 a').attr('href', '/');
       pageElement.data('site', null);
+      pageElement.removeClass('remote');
       state.setUrl();
       if (action.type !== 'fork') {
         action.fork = forkFrom;
-        wiki.addToJournal(pageElement.find('.journal'), {
+        addToJournal(pageElement.find('.journal'), {
           type: 'fork',
           site: forkFrom,
           date: action.date
@@ -1078,7 +1156,7 @@ require.define("/lib/state.coffee",function(require,module,exports,__dirname,__f
   var active, state,
     __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
-  active = require('./active');
+  active = require('./active.coffee');
 
   module.exports = state = {};
 
@@ -1259,6 +1337,37 @@ require.define("/lib/revision.coffee",function(require,module,exports,__dirname,
 
 });
 
+require.define("/lib/addToJournal.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
+  var util;
+
+  util = require('./util.coffee');
+
+  module.exports = function(journalElement, action) {
+    var actionElement, actionTitle, controls, pageElement, prev;
+    pageElement = journalElement.parents('.page:first');
+    if (action.type === 'edit') {
+      prev = journalElement.find(".edit[data-id=" + (action.id || 0) + "]");
+    }
+    actionTitle = action.type;
+    if (action.date != null) {
+      actionTitle += " " + (util.formatElapsedTime(action.date));
+    }
+    actionElement = $("<a href=\"#\" /> ").addClass("action").addClass(action.type).text(util.symbols[action.type]).attr('title', actionTitle).attr('data-id', action.id || "0").data('action', action);
+    controls = journalElement.children('.control-buttons');
+    if (controls.length > 0) {
+      actionElement.insertBefore(controls);
+    } else {
+      actionElement.appendTo(journalElement);
+    }
+    if (action.type === 'fork' && (action.site != null)) {
+      return actionElement.css("background-image", "url(//" + action.site + "/favicon.png)").attr("href", "//" + action.site + "/" + (pageElement.attr('id')) + ".html").data("site", action.site).data("slug", pageElement.attr('id'));
+    }
+  };
+
+}).call(this);
+
+});
+
 require.define("/test/mockServer.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
   var simulatePageFound, simulatePageNotFound;
 
@@ -1327,7 +1436,7 @@ require.define("/test/refresh.coffee",function(require,module,exports,__dirname,
 });
 
 require.define("/lib/refresh.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
-  var buildPageHeader, createFactory, emitHeader, handleDragging, initAddButton, initDragging, neighborhood, pageHandler, plugin, refresh, renderPageIntoPageElement, state, util,
+  var addToJournal, buildPageHeader, createFactory, emitHeader, emitTwins, handleDragging, initAddButton, initDragging, neighborhood, pageHandler, plugin, refresh, renderPageIntoPageElement, state, util, wiki,
     __slice = [].slice;
 
   util = require('./util.coffee');
@@ -1339,6 +1448,10 @@ require.define("/lib/refresh.coffee",function(require,module,exports,__dirname,_
   state = require('./state.coffee');
 
   neighborhood = require('./neighborhood.coffee');
+
+  addToJournal = require('./addToJournal.coffee');
+
+  wiki = require('./wiki.coffee');
 
   handleDragging = function(evt, ui) {
     var action, before, beforeElement, destinationPageElement, equals, item, itemElement, moveFromPage, moveToPage, moveWithinPage, order, sourcePageElement, sourceSite, thisPageElement;
@@ -1416,28 +1529,32 @@ require.define("/lib/refresh.coffee",function(require,module,exports,__dirname,_
   };
 
   buildPageHeader = function(_arg) {
-    var favicon_src, header_href, title, tooltip;
-    title = _arg.title, tooltip = _arg.tooltip, header_href = _arg.header_href, favicon_src = _arg.favicon_src;
-    return "<h1 title=\"" + tooltip + "\"><a href=\"" + header_href + "\"><img src=\"" + favicon_src + "\" height=\"32px\" class=\"favicon\"></a> " + title + "</h1>";
+    var favicon_src, header_href, page, tooltip;
+    page = _arg.page, tooltip = _arg.tooltip, header_href = _arg.header_href, favicon_src = _arg.favicon_src;
+    if (page.plugin) {
+      tooltip += "\n" + page.plugin + " plugin";
+    }
+    return "<h1 title=\"" + tooltip + "\"><a href=\"" + header_href + "\"><img src=\"" + favicon_src + "\" height=\"32px\" class=\"favicon\"></a> " + page.title + "</h1>";
   };
 
-  emitHeader = function($page, page) {
-    var date, header, isRemotePage, pageHeader, rev, site;
+  emitHeader = function($header, $page, page) {
+    var date, header, isRemotePage, pageHeader, rev, site, viewHere;
     site = $page.data('site');
     isRemotePage = (site != null) && site !== 'local' && site !== 'origin' && site !== 'view';
     header = '';
+    viewHere = wiki.asSlug(page.title) === 'welcome-visitors' ? "" : "/view/" + (wiki.asSlug(page.title));
     pageHeader = isRemotePage ? buildPageHeader({
       tooltip: site,
-      header_href: "//" + site,
+      header_href: "//" + site + "/view/welcome-visitors" + viewHere,
       favicon_src: "http://" + site + "/favicon.png",
-      title: page.title
+      page: page
     }) : buildPageHeader({
       tooltip: location.host,
-      header_href: "/",
+      header_href: "/view/welcome-visitors" + viewHere,
       favicon_src: "/favicon.png",
-      title: page.title
+      page: page
     });
-    $page.append(pageHeader);
+    $header.append(pageHeader);
     if (!isRemotePage) {
       $('img.favicon', $page).error(function(e) {
         return plugin.get('favicon', function(favicon) {
@@ -1445,14 +1562,77 @@ require.define("/lib/refresh.coffee",function(require,module,exports,__dirname,_
         });
       });
     }
-    if ((rev = $page.attr('id').split('_rev')[1]) != null) {
-      date = page.journal[page.journal.length - 1].date;
-      return $page.addClass('ghost').data('rev', rev).append($("<h2 class=\"revision\">\n  <span>\n    " + (date != null ? util.formatDate(date) : "Revision " + rev) + "\n  </span>\n</h2>"));
+    if ($page.attr('id').match(/_rev/)) {
+      rev = page.journal.length - 1;
+      date = page.journal[rev].date;
+      $page.addClass('ghost').data('rev', rev);
+      return $header.append($("<h2 class=\"revision\">\n  <span>\n    " + (date != null ? util.formatDate(date) : "Revision " + rev) + "\n  </span>\n</h2>"));
+    }
+  };
+
+  emitTwins = wiki.emitTwins = function($page) {
+    var actions, bin, bins, flags, i, info, item, legend, page, remoteSite, site, slug, twins, viewing, _i, _len, _ref, _ref1, _ref2, _ref3;
+    page = $page.data('data');
+    site = $page.data('site') || window.location.host;
+    if (site === 'view' || site === 'origin') {
+      site = window.location.host;
+    }
+    slug = wiki.asSlug(page.title);
+    if (((actions = (_ref = page.journal) != null ? _ref.length : void 0) != null) && ((viewing = (_ref1 = page.journal[actions - 1]) != null ? _ref1.date : void 0) != null)) {
+      viewing = Math.floor(viewing / 1000) * 1000;
+      bins = {
+        newer: [],
+        same: [],
+        older: []
+      };
+      _ref2 = wiki.neighborhood;
+      for (remoteSite in _ref2) {
+        info = _ref2[remoteSite];
+        if (remoteSite !== site && (info.sitemap != null)) {
+          _ref3 = info.sitemap;
+          for (_i = 0, _len = _ref3.length; _i < _len; _i++) {
+            item = _ref3[_i];
+            if (item.slug === slug) {
+              bin = item.date > viewing ? bins.newer : item.date < viewing ? bins.older : bins.same;
+              bin.push({
+                remoteSite: remoteSite,
+                item: item
+              });
+            }
+          }
+        }
+      }
+      twins = [];
+      for (legend in bins) {
+        bin = bins[legend];
+        if (!bin.length) {
+          continue;
+        }
+        bin.sort(function(a, b) {
+          return a.item.date < b.item.date;
+        });
+        flags = (function() {
+          var _j, _len1, _ref4, _results;
+          _results = [];
+          for (i = _j = 0, _len1 = bin.length; _j < _len1; i = ++_j) {
+            _ref4 = bin[i], remoteSite = _ref4.remoteSite, item = _ref4.item;
+            if (i >= 8) {
+              break;
+            }
+            _results.push("<img class=\"remote\"\nsrc=\"http://" + remoteSite + "/favicon.png\"\ndata-slug=\"" + slug + "\"\ndata-site=\"" + remoteSite + "\"\ntitle=\"" + remoteSite + "\">");
+          }
+          return _results;
+        })();
+        twins.push("" + (flags.join('&nbsp;')) + " " + legend);
+      }
+      if (twins) {
+        return $page.find('.twins').html("<p>" + (twins.join(", ")) + "</p>");
+      }
     }
   };
 
   renderPageIntoPageElement = function(pageData, $page, siteFound) {
-    var $footer, $journal, $story, action, addContext, context, emitItem, page, site, slug, _i, _j, _len, _len1, _ref, _ref1, _ref2;
+    var $footer, $header, $journal, $story, $twins, action, addContext, context, emitItem, page, site, slug, _i, _j, _len, _len1, _ref, _ref1, _ref2;
     page = $.extend(util.emptyPage(), pageData);
     $page.data("data", page);
     slug = $page.attr('id');
@@ -1472,28 +1652,34 @@ require.define("/lib/refresh.coffee",function(require,module,exports,__dirname,_
       addContext(action.site);
     }
     wiki.resolutionContext = context;
-    emitHeader($page, page);
-    _ref1 = ['story', 'journal', 'footer'].map(function(className) {
+    _ref1 = ['twins', 'header', 'story', 'journal', 'footer'].map(function(className) {
       return $("<div />").addClass(className).appendTo($page);
-    }), $story = _ref1[0], $journal = _ref1[1], $footer = _ref1[2];
+    }), $twins = _ref1[0], $header = _ref1[1], $story = _ref1[2], $journal = _ref1[3], $footer = _ref1[4];
+    emitHeader($header, $page, page);
     emitItem = function(i) {
       var $item, item;
       if (i >= page.story.length) {
         return;
       }
       item = page.story[i];
-      $item = $("<div class=\"item " + item.type + "\" data-id=\"" + item.id + "\">");
-      $story.append($item);
-      return plugin["do"]($item, item, function() {
+      if ((item != null ? item.type : void 0) && (item != null ? item.id : void 0)) {
+        $item = $("<div class=\"item " + item.type + "\" data-id=\"" + item.id + "\">");
+        $story.append($item);
+        return plugin["do"]($item, item, function() {
+          return emitItem(i + 1);
+        });
+      } else {
+        $story.append($("<div><p class=\"error\">Can't make sense of story[" + i + "]</p></div>"));
         return emitItem(i + 1);
-      });
+      }
     };
     emitItem(0);
     _ref2 = page.journal;
     for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
       action = _ref2[_j];
-      wiki.addToJournal($journal, action);
+      addToJournal($journal, action);
     }
+    emitTwins($page);
     $journal.append("<div class=\"control-buttons\">\n  <a href=\"#\" class=\"button fork-page\" title=\"fork this page\">" + util.symbols['fork'] + "</a>\n  <a href=\"#\" class=\"button add-factory\" title=\"add paragraph\">" + util.symbols['add'] + "</a>\n</div>");
     return $footer.append("<a id=\"license\" href=\"http://creativecommons.org/licenses/by-sa/3.0/\">CC BY-SA 3.0</a> .\n<a class=\"show-page-source\" href=\"/" + slug + ".json?random=" + (util.randomBytes(4)) + "\" title=\"source\">JSON</a> .\n<a>" + (siteFound || 'origin') + "</a>");
   };
@@ -1501,8 +1687,17 @@ require.define("/lib/refresh.coffee",function(require,module,exports,__dirname,_
   wiki.buildPage = function(data, siteFound, $page) {
     if (siteFound === 'local') {
       $page.addClass('local');
-    } else {
+    } else if (siteFound) {
+      if (siteFound === window.location.host) {
+        siteFound = 'origin';
+      }
+      if (siteFound !== 'view' && siteFound !== 'origin') {
+        $page.addClass('remote');
+      }
       $page.data('site', siteFound);
+    }
+    if (data.plugin != null) {
+      $page.addClass('plugin');
     }
     renderPageIntoPageElement(data, $page, siteFound);
     state.setUrl();
@@ -1688,7 +1883,18 @@ require.define("/lib/plugin.coffee",function(require,module,exports,__dirname,__
   window.plugins = {
     paragraph: {
       emit: function(div, item) {
-        return div.append("<p>" + (wiki.resolveLinks(item.text)) + "</p>");
+        var text, _i, _len, _ref, _results;
+        _ref = item.text.split(/\n\n+/);
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          text = _ref[_i];
+          if (text.match(/\S/)) {
+            _results.push(div.append("<p>" + (wiki.resolveLinks(text)) + "</p>"));
+          } else {
+            _results.push(void 0);
+          }
+        }
+        return _results;
       },
       bind: function(div, item) {
         return div.dblclick(function() {
@@ -1889,11 +2095,9 @@ require.define("/lib/neighborhood.coffee",function(require,module,exports,__dirn
 require.define("/lib/search.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
   var active, createSearch, util;
 
-  util = require('./util');
+  util = require('./util.coffee');
 
-  active = require('./active');
-
-  require('./dom');
+  active = require('./active.coffee');
 
   createSearch = function(_arg) {
     var neighborhood, performSearch;
@@ -1939,20 +2143,6 @@ require.define("/lib/search.coffee",function(require,module,exports,__dirname,__
   };
 
   module.exports = createSearch;
-
-}).call(this);
-
-});
-
-require.define("/lib/dom.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
-
-  wiki.createPage = function(name, loc) {
-    if (loc && loc !== 'view') {
-      return $("<div/>").attr('id', name).attr('data-site', loc).addClass("page");
-    } else {
-      return $("<div/>").attr('id', name).addClass("page");
-    }
-  };
 
 }).call(this);
 
@@ -2392,12 +2582,158 @@ require.define("/test/search.coffee",function(require,module,exports,__dirname,_
 
 });
 
+require.define("/plugins/calendar/calendar.js",function(require,module,exports,__dirname,__filename,process,global){// Generated by CoffeeScript 1.4.0
+(function() {
+  var apply, bind, emit, format, months, parse, show, span, spans;
+
+  months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+  spans = ['EARLY', 'LATE', 'DECADE', 'DAY', 'MONTH', 'YEAR'];
+
+  span = function(result, span) {
+    var m;
+    if ((m = spans.indexOf(result.span)) < 0) {
+      return result.span = span;
+    } else if ((spans.indexOf(span)) < m) {
+      return result.span = span;
+    }
+  };
+
+  parse = function(text) {
+    var i, line, m, result, rows, word, words, _i, _j, _len, _len1, _ref;
+    rows = [];
+    _ref = text.split(/\n/);
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      line = _ref[_i];
+      result = {};
+      words = line.match(/\S+/g);
+      for (i = _j = 0, _len1 = words.length; _j < _len1; i = ++_j) {
+        word = words[i];
+        if (word.match(/^\d\d\d\d$/)) {
+          result.year = +word;
+          span(result, 'YEAR');
+        } else if (m = word.match(/^(\d0)S$/)) {
+          result.year = +m[1] + 1900;
+          span(result, 'DECADE');
+        } else if ((m = spans.indexOf(word)) >= 0) {
+          result.span = spans[m];
+        } else if ((m = months.indexOf(word.slice(0, 3))) >= 0) {
+          result.month = m + 1;
+          span(result, 'MONTH');
+        } else if (m = word.match(/^([1-3]?[0-9])$/)) {
+          result.day = +m[1];
+          span(result, 'DAY');
+        } else {
+          result.label = words.slice(i, 1000).join(' ');
+          break;
+        }
+      }
+      rows.push(result);
+    }
+    return rows;
+  };
+
+  apply = function(input, output, date, rows) {
+    var result, row, _i, _len, _ref, _ref1;
+    result = [];
+    for (_i = 0, _len = rows.length; _i < _len; _i++) {
+      row = rows[_i];
+      if (((_ref = input[row.label]) != null ? _ref.date : void 0) != null) {
+        date = input[row.label].date;
+      }
+      if (((_ref1 = output[row.label]) != null ? _ref1.date : void 0) != null) {
+        date = output[row.label].date;
+      }
+      if (row.year != null) {
+        date = new Date(row.year, 1 - 1);
+      }
+      if (row.month != null) {
+        date = new Date(date.getYear() + 1900, row.month - 1);
+      }
+      if (row.day != null) {
+        date = new Date(date.getYear() + 1900, date.getMonth(), row.day);
+      }
+      if (row.label != null) {
+        output[row.label] = {
+          date: date
+        };
+        if (row.span != null) {
+          output[row.label].span = row.span;
+        }
+      }
+      row.date = date;
+      result.push(row);
+    }
+    return result;
+  };
+
+  show = function(date, span) {
+    switch (span) {
+      case 'YEAR':
+        return date.getFullYear();
+      case 'DECADE':
+        return "" + (date.getFullYear()) + "'S";
+      case 'EARLY':
+        return "Early " + (date.getFullYear()) + "'S";
+      case 'LATE':
+        return "Late " + (date.getFullYear()) + "'S";
+      case 'MONTH':
+        return "" + months[date.getMonth()] + " " + (date.getFullYear());
+      default:
+        return "" + (date.getDate()) + " " + months[date.getMonth()] + " " + (date.getFullYear());
+    }
+  };
+
+  format = function(rows) {
+    var row, _i, _len, _results;
+    _results = [];
+    for (_i = 0, _len = rows.length; _i < _len; _i++) {
+      row = rows[_i];
+      _results.push("<tr><td>" + (show(row.date, row.span)) + "<td>" + row.label);
+    }
+    return _results;
+  };
+
+  if (typeof module !== "undefined" && module !== null) {
+    module.exports = {
+      parse: parse,
+      apply: apply,
+      format: format
+    };
+  }
+
+  emit = function(div, item) {
+    var results, rows;
+    rows = parse(item.text);
+    wiki.log('calendar rows', rows);
+    results = apply({}, {}, new Date(), rows);
+    wiki.log('calendar results', results);
+    return div.append("<table style=\"width:100%; background:#eee; padding:.8em; margin-bottom:5px;\">" + (format(results).join('')) + "</table>");
+  };
+
+  bind = function(div, item) {
+    return div.dblclick(function() {
+      return wiki.textEditor(div, item);
+    });
+  };
+
+  if (typeof window !== "undefined" && window !== null) {
+    window.plugins.calendar = {
+      emit: emit,
+      bind: bind
+    };
+  }
+
+}).call(this);
+
+});
+
 require.define("/plugins/changes/changes.js",function(require,module,exports,__dirname,__filename,process,global){// Generated by CoffeeScript 1.4.0
 (function() {
   var constructor, listItemHtml, pageBundle;
 
   listItemHtml = function(slug, page) {
-    return "<li>\n  <a class=\"internal\" href=\"#\" title=\"local\" data-page-name=\"" + slug + "\" data-site=\"local\">\n    " + page.title + "\n  </a> \n  <button class=\"delete\">✕</button>\n</li>";
+    return "<li><a class=\"internal\" href=\"#\" title=\"local\" data-page-name=\"" + slug + "\" data-site=\"local\">" + page.title + "</a> <button class=\"delete\">✕</button></li>";
   };
 
   pageBundle = function() {
@@ -2535,7 +2871,6 @@ require.define("/plugins/efficiency/efficiency.js",function(require,module,expor
         c = $('<canvas id="myCanvas" width="#{w}" height="#{h}">');
         d = c.get(0).getContext("2d");
         d.drawImage(img, 0, 0);
-        wiki.log('efficiency img w, h', w, h, 'c w, h ', c.width(), c.height());
         imageData = d.getImageData(0, 0, w, h);
         return imageData.data;
       };
@@ -2549,7 +2884,6 @@ require.define("/plugins/efficiency/efficiency.js",function(require,module,expor
     getGrayLumaFromRGBT: function(rgbt) {
       var B, G, R, i, lumas, numPix, _i, _ref;
       numPix = rgbt.length / 4;
-      wiki.log('getGrayLumaFromRGBT numPix: ', numPix);
       lumas = [];
       for (i = _i = 0, _ref = numPix - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
         R = rgbt[i * 4 + 0];
@@ -2565,7 +2899,6 @@ require.define("/plugins/efficiency/efficiency.js",function(require,module,expor
       lumaMax = Math.max.apply(Math, lumas);
       numLumas = lumas.length;
       lumaMid = (lumaMax - lumaMin) / 2.0 + lumaMin;
-      wiki.log('lumaMin, lumaMax, lumaMid: ', lumaMin, lumaMax, lumaMid);
       lumaLowCount = 0;
       lumaHighCount = 0;
       for (_i = 0, _len = lumas.length; _i < _len; _i++) {
@@ -2576,7 +2909,6 @@ require.define("/plugins/efficiency/efficiency.js",function(require,module,expor
           lumaHighCount++;
         }
       }
-      wiki.log('calculateStrategy_GrayBinary: numLumas, lowCount, high count: ', numLumas, lumaLowCount, lumaHighCount);
       percentage = lumaHighCount / numLumas * 100;
       return percentage;
     },
@@ -2616,7 +2948,7 @@ require.define("/plugins/efficiency/efficiency.js",function(require,module,expor
           if (!isNaN(low)) {
             lumaLowTotal += low;
           } else {
-            wiki.log('Found a NaN low ', low);
+
           }
         }
         lumaAvgLow = 0;
@@ -2624,27 +2956,21 @@ require.define("/plugins/efficiency/efficiency.js",function(require,module,expor
           lumaAvgLow = lumaLowTotal / lumaLowCount;
         }
         lumaHighTotal = 0;
-        wiki.log('lumasHigh ', lumasHigh);
         for (_k = 0, _len2 = lumasHigh.length; _k < _len2; _k++) {
           high = lumasHigh[_k];
           if (!isNaN(high)) {
             lumaHighTotal += high;
           } else {
-            wiki.log('Found a NaN high', high);
+
           }
         }
         lumaAvgHigh = 0;
         if (lumaHighCount > 0) {
           lumaAvgHigh = lumaHighTotal / lumaHighCount;
         }
-        wiki.log('lumaLowCount ', lumaLowCount, '  lumaHighCount ', lumaHighCount);
-        wiki.log('lumaLowTotal ', lumaLowTotal, '  lumaHighTotal ', lumaHighTotal);
-        wiki.log('lumaAvgLow ', lumaAvgLow, '  lumaAvgHigh ', lumaAvgHigh);
         threshold = (lumaAvgHigh - lumaAvgLow) / 2 + lumaAvgLow;
         thresholdDiff = Math.abs(threshold - thresholdInitial);
-        wiki.log('numTries ', numTries, '  thresholdDiff ', thresholdDiff, '  thresholdInitial ', thresholdInitial, '  threshold new ', threshold);
         if (thresholdDiff <= THRESHOLD_CONVERGENCE_GOAL || numTries > MAX_TRIES) {
-          wiki.log("we're done");
           break;
         } else {
           thresholdInitial = threshold;
@@ -2662,27 +2988,460 @@ require.define("/plugins/efficiency/efficiency.js",function(require,module,expor
 
 });
 
-require.define("/testclient.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
-  var util,
+require.define("/plugins/report/report.js",function(require,module,exports,__dirname,__filename,process,global){// Generated by CoffeeScript 1.4.0
+(function() {
+  var advance, bind, emit, enumerate, explain, hours, human, intervals, months, parse, primAdvance, soon, summarize, wdays,
     __slice = [].slice;
 
-  mocha.setup('bdd');
+  enumerate = function() {
+    var i, k, keys, obj, _i, _len;
+    keys = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+    obj = {
+      keys: keys
+    };
+    for (i = _i = 0, _len = keys.length; _i < _len; i = ++_i) {
+      k = keys[i];
+      obj[k] = i + 1;
+    }
+    return obj;
+  };
 
-  window.wiki = {};
+  intervals = enumerate('HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY');
 
-  wiki.log = function() {
-    var things;
-    things = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
-    if ((typeof console !== "undefined" && console !== null ? console.log : void 0) != null) {
-      return console.log(things);
+  hours = enumerate('MIDNIGHT', 'MORNING', 'NOON', 'EVENING');
+
+  wdays = enumerate('SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY');
+
+  months = enumerate('JANUARY', 'FEBUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER');
+
+  parse = function(text) {
+    var issue, schedule, word, _i, _len, _ref;
+    schedule = [];
+    issue = null;
+    _ref = text.match(/\S+/g) || [];
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      word = _ref[_i];
+      try {
+        if (intervals[word]) {
+          schedule.push(issue = {
+            interval: word,
+            recipients: [],
+            offsets: []
+          });
+        } else if (months[word] || wdays[word] || hours[word]) {
+          issue.offsets.push(word);
+        } else if (word.match(/@/)) {
+          issue.recipients.push(word);
+        } else {
+          schedule.push({
+            trouble: word
+          });
+        }
+      } catch (e) {
+        schedule.push({
+          trouble: e.message
+        });
+      }
+    }
+    return schedule;
+  };
+
+  human = function(msecs) {
+    var days, hrs, mins, secs, weeks, years;
+    if ((secs = msecs / 1000) < 2) {
+      return "" + (Math.floor(msecs)) + " milliseconds";
+    }
+    if ((mins = secs / 60) < 2) {
+      return "" + (Math.floor(secs)) + " seconds";
+    }
+    if ((hrs = mins / 60) < 2) {
+      return "" + (Math.floor(mins)) + " minutes";
+    }
+    if ((days = hrs / 24) < 2) {
+      return "" + (Math.floor(hrs)) + " hours";
+    }
+    if ((weeks = days / 7) < 2) {
+      return "" + (Math.floor(days)) + " days";
+    }
+    if ((months = days / 30.5) < 2) {
+      return "" + (Math.floor(weeks)) + " weeks";
+    }
+    if ((years = days / 365) < 2) {
+      return "" + (Math.floor(months)) + " months";
+    }
+    return "" + (Math.floor(years)) + " years";
+  };
+
+  primAdvance = function(date, issue, count) {
+    var d, h, m, offset, result, y, _i, _len, _ref, _ref1, _ref2;
+    _ref = [date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()], y = _ref[0], m = _ref[1], d = _ref[2], h = _ref[3];
+    result = (function() {
+      switch (issue.interval) {
+        case 'HOURLY':
+          return new Date(y, m, d, h + count);
+        case 'DAILY':
+          return new Date(y, m, d + count);
+        case 'WEEKLY':
+          return new Date(y, m, d - date.getDay() + 7 * count);
+        case 'MONTHLY':
+          return new Date(y, m + count);
+        case 'YEARLY':
+          return new Date(y + count, 0);
+      }
+    })();
+    _ref1 = issue.offsets;
+    for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
+      offset = _ref1[_i];
+      _ref2 = [result.getFullYear(), result.getMonth(), result.getDate(), result.getHours()], y = _ref2[0], m = _ref2[1], d = _ref2[2], h = _ref2[3];
+      result = months[offset] ? new Date(y, months[offset] - 1, d, h) : wdays[offset] ? new Date(y, m, d + (7 - result.getDay() + wdays[offset] - 1) % 7, h) : hours[offset] ? new Date(y, m, d, h + 6 * (hours[offset] - 1)) : void 0;
+    }
+    return result;
+  };
+
+  advance = function(date, issue, count) {
+    var prim;
+    prim = primAdvance(date, issue, 0);
+    if (prim > date) {
+      return primAdvance(date, issue, count - 1);
+    } else {
+      return primAdvance(date, issue, count);
     }
   };
 
-  util = require('./lib/util.coffee');
+  soon = function(issue) {
+    var next, now;
+    now = new Date();
+    next = advance(now, issue, 1);
+    return human(next.getTime() - now.getTime());
+  };
 
-  wiki.resolveLinks = util.resolveLinks;
+  explain = function(issue) {
+    if (issue.interval != null) {
+      return "reporting " + issue.interval + " for " + issue.recipients.length + " recipients in " + (soon(issue));
+    } else if (issue.trouble != null) {
+      return "don't expect: <span class=error>" + issue.trouble + "</span>";
+    } else {
+      return "trouble";
+    }
+  };
 
-  wiki.resolutionContext = ['view'];
+  if (typeof module !== "undefined" && module !== null) {
+    module.exports = {
+      intervals: intervals,
+      parse: parse,
+      explain: explain,
+      advance: advance
+    };
+  }
+
+  summarize = function(schedule) {
+    var issue;
+    return ((function() {
+      var _i, _len, _results;
+      _results = [];
+      for (_i = 0, _len = schedule.length; _i < _len; _i++) {
+        issue = schedule[_i];
+        _results.push(explain(issue));
+      }
+      return _results;
+    })()).join("<br>");
+  };
+
+  emit = function($item, item) {
+    return $item.append($("<p>" + (summarize(parse(item.text))) + "</p>"));
+  };
+
+  bind = function($item, item) {
+    return $item.dblclick(function() {
+      return wiki.textEditor($item, item);
+    });
+  };
+
+  if (typeof window !== "undefined" && window !== null) {
+    window.plugins.report = {
+      emit: emit,
+      bind: bind
+    };
+  }
+
+}).call(this);
+
+});
+
+require.define("/plugins/txtzyme/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"txtzyme.js"}
+});
+
+require.define("/plugins/txtzyme/txtzyme.js",function(require,module,exports,__dirname,__filename,process,global){// Generated by CoffeeScript 1.4.0
+(function() {
+  var apply, bind, emit, parse, report, value;
+
+  parse = function(text) {
+    var defn, line, prev, word, words, _i, _j, _len, _len1, _ref, _ref1;
+    defn = {};
+    _ref = text.split(/\n+/);
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      line = _ref[_i];
+      words = line.split(/\s+/);
+      if (words[0]) {
+        defn[words[0]] = prev = words.slice(1, 1000);
+      } else {
+        _ref1 = words.slice(1, 1000);
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          word = _ref1[_j];
+          prev.push(word);
+        }
+      }
+    }
+    return defn;
+  };
+
+  value = function(type, number, arg) {
+    var string;
+    switch (type) {
+      case 'A':
+        if (number.length) {
+          return arg[+number];
+        } else {
+          return arg;
+        }
+        break;
+      case 'B':
+        return 1 & (arg >> (number || 0));
+      case 'C':
+        string = arg.toString();
+        if (number < string.length) {
+          return string.charCodeAt(number);
+        } else {
+          return 32;
+        }
+        break;
+      case 'D':
+        return 48 + Math.floor(+arg / (Math.pow(10, number)) % 10);
+      case '':
+        return number;
+    }
+  };
+
+  apply = function(defn, call, arg, emit) {
+    var words, _ref;
+    if (!(words = (_ref = defn[call]) != null ? _ref.slice(0) : void 0)) {
+      return;
+    }
+    return (function(stack, result) {
+      var next, send;
+      send = function() {
+        var text;
+        if (!result.length) {
+          return;
+        }
+        text = "" + (result.join(' ')) + "\n";
+        result = [];
+        return emit(text, stack, next);
+      };
+      next = function() {
+        var m, word, _ref1, _ref2, _ref3;
+        if (!stack.length) {
+          return;
+        }
+        word = (_ref1 = stack[stack.length - 1]) != null ? _ref1.words.shift() : void 0;
+        arg = (_ref2 = stack[stack.length - 1]) != null ? _ref2.arg : void 0;
+        if (word === void 0) {
+          stack.pop();
+        } else if (word === 'NL') {
+          return send();
+        } else if (m = word.match(/^([ABCD])([0-9]*)$/)) {
+          result.push(value(m[1], m[2], arg));
+        } else if (m = word.match(/^([A-Z][A-Z0-9]*)(\/([ABCD]?)([0-9]*))?$/)) {
+          if (stack.length < 10 && (words = (_ref3 = defn[m[1]]) != null ? _ref3.slice(0) : void 0)) {
+            if (m[2]) {
+              arg = value(m[3], m[4], arg);
+            }
+            stack.push({
+              call: word,
+              arg: arg,
+              words: words
+            });
+          }
+        } else {
+          result.push(word);
+        }
+        if (stack.length) {
+          return next();
+        } else {
+          return send();
+        }
+      };
+      if (words.length) {
+        return next();
+      }
+    })([
+      {
+        call: call,
+        arg: arg,
+        words: words
+      }
+    ], []);
+  };
+
+  report = function(defn) {
+    var key, word, words, _i, _len;
+    report = [];
+    for (key in defn) {
+      words = defn[key];
+      report.push("<li class=\"" + key + "\"><span>" + key + "</span>");
+      for (_i = 0, _len = words.length; _i < _len; _i++) {
+        word = words[_i];
+        report.push("<span>" + word + "</span>");
+      }
+    }
+    return report.join(' ');
+  };
+
+  if (typeof module !== "undefined" && module !== null) {
+    module.exports = {
+      parse: parse,
+      apply: apply
+    };
+  }
+
+  emit = function($item, item) {
+    return $item.append("<div style=\"width:93%; background:#eee; padding:.8em; margin-bottom:5px;\">\n  <p class=\"report\" style=\"white-space: pre; white-space: pre-wrap;\">" + item.text + "</p>\n  <p class=\"caption\">status here</p>\n</div>");
+  };
+
+  bind = function($item, item) {
+    var $page, defn, frame, host, progress, rcvd, response, rrept, sent, socket, srept, startTicking, tick, timer, trigger;
+    defn = parse(item.text);
+    $page = $item.parents('.page:first');
+    host = $page.data('site') || location.host;
+    if (host === 'origin' || host === 'local') {
+      host = location.host;
+    }
+    socket = new WebSocket("ws://" + host + "/plugin/txtzyme");
+    sent = rcvd = 0;
+    srept = rrept = "";
+    response = [];
+    if (item.text.replace(/_.*?_/g, '').match(/p/)) {
+      $item.addClass('sequence-source');
+      $item.get(0).getSequenceData = function() {
+        return response;
+      };
+    }
+    frame = 0;
+    tick = function() {
+      var arg, now;
+      frame = frame % 40 + 1;
+      now = new Date();
+      arg = [frame, now.getSeconds(), now.getMinutes(), now.getHours()];
+      trigger('FRAME', arg);
+      if (frame !== 1) {
+        return;
+      }
+      arg.shift();
+      trigger('SECOND', arg);
+      if (arg[0]) {
+        return;
+      }
+      trigger('MINUTE', arg);
+      if (arg[1]) {
+        return;
+      }
+      trigger('HOUR', arg);
+      if (arg[2]) {
+        return;
+      }
+      return trigger('DAY', arg);
+    };
+    timer = null;
+    startTicking = function() {
+      timer = setInterval(tick, 25);
+      return tick();
+    };
+    setTimeout(startTicking, 1000 - (new Date().getMilliseconds()));
+    $item.dblclick(function() {
+      clearInterval(timer);
+      if (socket != null) {
+        socket.close();
+      }
+      return wiki.textEditor($item, item);
+    });
+    $(".main").on('thumb', function(evt, thumb) {
+      return trigger('THUMB', thumb);
+    });
+    $item.delegate('.rcvd', 'click', function() {
+      return wiki.dialog("Txtzyme Responses", "<pre>" + (response.join("\n")));
+    });
+    trigger = function(word, arg) {
+      if (arg == null) {
+        arg = 0;
+      }
+      return apply(defn, word, arg, function(message, stack, done) {
+        var call, todo, words;
+        todo = ((function() {
+          var _i, _len, _ref, _results;
+          _results = [];
+          for (_i = 0, _len = stack.length; _i < _len; _i++) {
+            _ref = stack[_i], call = _ref.call, words = _ref.words;
+            _results.push("" + call + " " + (words.join(' ')) + "<br>");
+          }
+          return _results;
+        })()).join('');
+        $item.find('p.report').html("" + todo + message);
+        if (socket) {
+          progress((srept = " " + (++sent) + " sent ") + rrept);
+          if (response.length) {
+            window.dialog.html("<pre>" + (response.join("\n")));
+            $item.trigger('sequence', [response]);
+          }
+          response = [];
+          socket.send(message);
+        }
+        return setTimeout(done, 200);
+      });
+    };
+    progress = function(m) {
+      return $item.find('p.caption').html(m);
+    };
+    socket.onopen = function() {
+      progress("opened");
+      return trigger('OPEN');
+    };
+    socket.onmessage = function(e) {
+      var line, _i, _len, _ref, _results;
+      _ref = e.data.split(/\r?\n/);
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        line = _ref[_i];
+        if (line) {
+          progress(srept + (rrept = "<span class=rcvd> " + (++rcvd) + " rcvd " + line + " </span>"));
+          _results.push(response.push(line));
+        } else {
+          _results.push(void 0);
+        }
+      }
+      return _results;
+    };
+    return socket.onclose = function() {
+      progress("closed");
+      return socket = null;
+    };
+  };
+
+  if (typeof window !== "undefined" && window !== null) {
+    window.plugins.txtzyme = {
+      emit: emit,
+      bind: bind
+    };
+  }
+
+}).call(this);
+
+});
+
+require.define("/testclient.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
+
+  mocha.setup('bdd');
+
+  window.wiki = require('./lib/wiki.coffee');
 
   require('./test/util.coffee');
 
@@ -2709,6 +3468,186 @@ require.define("/testclient.coffee",function(require,module,exports,__dirname,__
 
 });
 require("/testclient.coffee");
+
+require.define("/plugins/calendar/test.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
+  var report;
+
+  report = require('./calendar');
+
+  describe('calendar plugin', function() {
+    describe('parsing', function() {
+      it('recognizes decades', function() {
+        expect(report.parse("1960 DECADE")).to.eql([
+          {
+            year: 1960,
+            span: 'DECADE'
+          }
+        ]);
+        expect(report.parse("DECADE 1960")).to.eql([
+          {
+            year: 1960,
+            span: 'DECADE'
+          }
+        ]);
+        return expect(report.parse("60S")).to.eql([
+          {
+            year: 1960,
+            span: 'DECADE'
+          }
+        ]);
+      });
+      it('recognizes half decades', function() {
+        expect(report.parse("60S EARLY")).to.eql([
+          {
+            year: 1960,
+            span: 'EARLY'
+          }
+        ]);
+        expect(report.parse("EARLY 60S")).to.eql([
+          {
+            year: 1960,
+            span: 'EARLY'
+          }
+        ]);
+        return expect(report.parse("LATE 60S")).to.eql([
+          {
+            year: 1960,
+            span: 'LATE'
+          }
+        ]);
+      });
+      it('recognizes years', function() {
+        return expect(report.parse("1960")).to.eql([
+          {
+            year: 1960,
+            span: 'YEAR'
+          }
+        ]);
+      });
+      it('recognizes months', function() {
+        expect(report.parse("1960 MAR")).to.eql([
+          {
+            year: 1960,
+            month: 3,
+            span: 'MONTH'
+          }
+        ]);
+        expect(report.parse("MAR 1960")).to.eql([
+          {
+            year: 1960,
+            month: 3,
+            span: 'MONTH'
+          }
+        ]);
+        return expect(report.parse("MARCH 1960")).to.eql([
+          {
+            year: 1960,
+            month: 3,
+            span: 'MONTH'
+          }
+        ]);
+      });
+      it('recognizes days', function() {
+        expect(report.parse("MAR 5 1960")).to.eql([
+          {
+            year: 1960,
+            month: 3,
+            day: 5,
+            span: 'DAY'
+          }
+        ]);
+        expect(report.parse("1960 MAR 5")).to.eql([
+          {
+            year: 1960,
+            month: 3,
+            day: 5,
+            span: 'DAY'
+          }
+        ]);
+        return expect(report.parse("5 MAR 1960")).to.eql([
+          {
+            year: 1960,
+            month: 3,
+            day: 5,
+            span: 'DAY'
+          }
+        ]);
+      });
+      return it('recognizes labels', function() {
+        expect(report.parse("Ward's CHM Interview")).to.eql([
+          {
+            label: "Ward's CHM Interview"
+          }
+        ]);
+        expect(report.parse("APRIL 24 2006 Ward's CHM Interview")).to.eql([
+          {
+            year: 2006,
+            month: 4,
+            day: 24,
+            span: 'DAY',
+            label: "Ward's CHM Interview"
+          }
+        ]);
+        return expect(report.parse(" APRIL  24  2006\tWard's  CHM  Interview  ")).to.eql([
+          {
+            year: 2006,
+            month: 4,
+            day: 24,
+            span: 'DAY',
+            label: "Ward's CHM Interview"
+          }
+        ]);
+      });
+    });
+    return describe('applying', function() {
+      var interview, today;
+      today = new Date(2013, 2 - 1, 3);
+      interview = new Date(2006, 4 - 1, 24);
+      it('recalls input', function() {
+        var input, output, rows;
+        input = {
+          interview: {
+            date: interview
+          }
+        };
+        output = {};
+        rows = report.parse("interview");
+        return expect(report.apply(input, output, today, rows)).to.eql([
+          {
+            date: interview,
+            label: 'interview'
+          }
+        ]);
+      });
+      return it('extends today', function() {
+        var input, output, results, rows;
+        input = {};
+        output = {};
+        rows = report.parse("APRIL 1 April Fools Day");
+        results = report.apply(input, output, today, rows);
+        expect(results).to.eql([
+          {
+            date: new Date(2013, 4 - 1),
+            month: 4,
+            day: 1,
+            span: 'DAY',
+            label: 'April Fools Day'
+          }
+        ]);
+        return expect(output).to.eql({
+          'April Fools Day': {
+            date: new Date(2013, 4 - 1),
+            span: 'DAY'
+          }
+        });
+      });
+    });
+  });
+
+}).call(this);
+
+});
+require("/plugins/calendar/test.coffee");
 
 require.define("/plugins/changes/test.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
   var createFakeLocalStorage, pluginCtor;
@@ -2842,15 +3781,12 @@ require.define("/plugins/efficiency/test.coffee",function(require,module,exports
     if (accuracy == null) {
       accuracy = 0.1;
     }
-    wiki.log('expectArraysEqual a1', a1);
-    wiki.log('expectArraysEqual a2', a2);
     expect(a1.length).to.equal(a2.length);
     length = a1.length;
     _results = [];
     for (i = _i = 0, _ref = length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
       diff = Math.abs(a1[i] - a2[i]);
       isItGood = diff <= accuracy;
-      wiki.log('expectArraysEqual diff: ', diff);
       _results.push(expect(isItGood).to.be.ok());
     }
     return _results;
@@ -2859,12 +3795,10 @@ require.define("/plugins/efficiency/test.coffee",function(require,module,exports
   describe('efficiency plugin', function() {
     var actual, actualArray, expected, expectedLuma, rgbt;
     it("max & min of array", function() {
-      wiki.log('max & min of array');
       expect(6).to.equal(Math.max.apply(Math, [1, 2, 3, 4, 5, 6]));
       return expect(1).to.equal(Math.min.apply(Math, [1, 2, 3, 4, 5, 6]));
     });
     it("Get gray luma from 4-byte RGBT data. Two values", function() {});
-    wiki.log('get luma, two values');
     rgbt = [1, 1, 1, 1, 2, 2, 2, 2];
     expectedLuma = [1.0, 2.0];
     actualArray = window.plugins.efficiency.getGrayLumaFromRGBT(rgbt);
@@ -2872,7 +3806,6 @@ require.define("/plugins/efficiency/test.coffee",function(require,module,exports
     actual = JSON.stringify(actualArray);
     expectArraysEqual(expectedLuma, actualArray);
     it("Get gray luma from 4-byte RGBT data. Three values", function() {});
-    wiki.log('get luma, three values');
     rgbt = [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3];
     expectedLuma = [1.0, 2.0, 3.0];
     actualArray = window.plugins.efficiency.getGrayLumaFromRGBT(rgbt);
@@ -2881,42 +3814,36 @@ require.define("/plugins/efficiency/test.coffee",function(require,module,exports
     expectArraysEqual(expectedLuma, actualArray);
     it("calculateStrategy_GrayBinary 50% binary data", function() {
       var lumas, output;
-      wiki.log('calculateStrategy_GrayBinary 50% binary');
       lumas = [0, 0, 255, 255];
       output = window.plugins.efficiency.calculateStrategy_GrayBinary(lumas);
       return expect('50.0').to.equal(output.toFixed(1));
     });
     it("calculateStrategy_GrayBinary 50% linear data", function() {
       var lumas, output;
-      wiki.log('calculateStrategy_GrayBinary 50%  linear');
       lumas = [1, 2, 3, 4];
       output = window.plugins.efficiency.calculateStrategy_GrayBinary(lumas);
       return expect('50.0').to.equal(output.toFixed(1));
     });
     it("calculateStrategy_GrayBinary 75% binary data", function() {
       var lumas, output;
-      wiki.log('calculateStrategy_GrayBinary 75% binary');
       lumas = [0, 255, 255, 255];
       output = window.plugins.efficiency.calculateStrategy_GrayBinary(lumas);
       return expect('75.0').to.equal(output.toFixed(1));
     });
     it("calculateStrategy_GrayIterativeClustering 50% binary data", function() {
       var lumas, output;
-      wiki.log('calculateStrategy_GrayIterativeClustering 50% binary');
       lumas = [0, 0, 255, 255];
       output = window.plugins.efficiency.calculateStrategy_GrayIterativeClustering(lumas);
       return expect('50.0').to.equal(output.toFixed(1));
     });
     it("calculateStrategy_GrayIterativeClustering 50% linear data", function() {
       var lumas, output;
-      wiki.log('calculateStrategy_GrayIterativeClustering 50% linear');
       lumas = [1, 2, 3, 4];
       output = window.plugins.efficiency.calculateStrategy_GrayIterativeClustering(lumas);
       return expect('50.0').to.equal(output.toFixed(1));
     });
     return it("calculateStrategy_GrayIterativeClustering 75% binary data", function() {
       var lumas, output;
-      wiki.log('calculateStrategy_GrayIterativeClustering 75% binary');
       lumas = [0, 255, 255, 255];
       output = window.plugins.efficiency.calculateStrategy_GrayIterativeClustering(lumas);
       return expect('75.0').to.equal(output.toFixed(1));
@@ -2927,4 +3854,194 @@ require.define("/plugins/efficiency/test.coffee",function(require,module,exports
 
 });
 require("/plugins/efficiency/test.coffee");
+
+require.define("/plugins/report/test.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
+  var report;
+
+  report = require('./report');
+
+  describe('report plugin', function() {
+    describe('parsing', function() {
+      it('returns an array', function() {
+        var schedule;
+        schedule = report.parse("");
+        return expect(schedule).to.eql([]);
+      });
+      it('parses intervals', function() {
+        var issue;
+        issue = report.parse("DAILY ward@example.com")[0];
+        return expect(issue.interval).to.be('DAILY');
+      });
+      it('parses offsets', function() {
+        var issue;
+        issue = report.parse("WEEKLY TUESDAY NOON")[0];
+        return expect(issue.offsets).to.eql(['TUESDAY', 'NOON']);
+      });
+      it('parses recipients', function() {
+        var issue;
+        issue = report.parse("DAILY ward@c2.com root@c2.com")[0];
+        return expect(issue.recipients).to.eql(['ward@c2.com', 'root@c2.com']);
+      });
+      return it('parses multiple issues', function() {
+        var schedule;
+        schedule = report.parse("WEEKLY MONTHLY YEARLY");
+        return expect(schedule).to.have.length(3);
+      });
+    });
+    return describe('advancing', function() {
+      it('handles weeks', function() {
+        var count, date, issue;
+        issue = report.parse("WEEKLY")[0];
+        date = new Date(2012, 12 - 1, 25, 3, 4, 5);
+        count = function(i) {
+          return report.advance(date, issue, i);
+        };
+        expect(count(-1)).to.eql(new Date(2012, 12 - 1, 16));
+        expect(count(0)).to.eql(new Date(2012, 12 - 1, 23));
+        expect(count(1)).to.eql(new Date(2012, 12 - 1, 30));
+        return expect(count(2)).to.eql(new Date(2013, 1 - 1, 6));
+      });
+      it('handles weeks with offsets (noon > now)', function() {
+        var count, date, issue;
+        issue = report.parse("WEEKLY TUESDAY NOON")[0];
+        date = new Date(2012, 12 - 1, 25, 3, 4, 5);
+        count = function(i) {
+          return report.advance(date, issue, i);
+        };
+        expect(count(-1)).to.eql(new Date(2012, 12 - 1, 11, 12));
+        expect(count(0)).to.eql(new Date(2012, 12 - 1, 18, 12));
+        expect(count(1)).to.eql(new Date(2012, 12 - 1, 25, 12));
+        return expect(count(2)).to.eql(new Date(2013, 1 - 1, 1, 12));
+      });
+      it('handles years with offsets (march < now)', function() {
+        var count, date, issue;
+        issue = report.parse("YEARLY MARCH FRIDAY EVENING")[0];
+        date = new Date(2012, 12 - 1, 25, 3, 4, 5);
+        count = function(i) {
+          return report.advance(date, issue, i);
+        };
+        expect(count(-1)).to.eql(new Date(2011, 3 - 1, 4, 18));
+        expect(count(0)).to.eql(new Date(2012, 3 - 1, 2, 18));
+        expect(count(1)).to.eql(new Date(2013, 3 - 1, 1, 18));
+        return expect(count(2)).to.eql(new Date(2014, 3 - 1, 7, 18));
+      });
+      return it('handles election day (election > now)', function() {
+        var count, date, issue;
+        issue = report.parse("YEARLY NOVEMBER MONDAY TUESDAY MORNING")[0];
+        date = new Date(2016, 1, 2, 3, 4, 5);
+        count = function(i) {
+          return report.advance(date, issue, i);
+        };
+        expect(count(-1)).to.eql(new Date(2014, 11 - 1, 4, 6));
+        expect(count(0)).to.eql(new Date(2015, 11 - 1, 3, 6));
+        expect(count(1)).to.eql(new Date(2016, 11 - 1, 8, 6));
+        return expect(count(2)).to.eql(new Date(2017, 11 - 1, 7, 6));
+      });
+    });
+  });
+
+}).call(this);
+
+});
+require("/plugins/report/test.coffee");
+
+require.define("/plugins/txtzyme/test.coffee",function(require,module,exports,__dirname,__filename,process,global){(function() {
+  var txtzyme;
+
+  txtzyme = require('./txtzyme');
+
+  console.log(txtzyme);
+
+  describe('txtzyme plugin', function() {
+    describe('parsing', function() {
+      it('recognizes definitions', function() {
+        return expect(txtzyme.parse("SECOND 1o500m0o")).to.eql({
+          SECOND: ['1o500m0o']
+        });
+      });
+      it('handles empty definitions', function() {
+        return expect(txtzyme.parse("SECOND")).to.eql({
+          SECOND: []
+        });
+      });
+      it('recognizes multiple definitions', function() {
+        return expect(txtzyme.parse("SECOND BLINK BLINK\nBLINK 1o500m0o500m")).to.eql({
+          SECOND: ['BLINK', 'BLINK'],
+          BLINK: ['1o500m0o500m']
+        });
+      });
+      it('ignores blank line separator', function() {
+        return expect(txtzyme.parse("SECOND BLINK BLINK\n\nBLINK 1o500m0o500m")).to.eql({
+          SECOND: ['BLINK', 'BLINK'],
+          BLINK: ['1o500m0o500m']
+        });
+      });
+      return it('treates indented lines as continuations', function() {
+        return expect(txtzyme.parse("SECOND BLINK\n BLINK\n\nBLINK\n 1o500m0o500m")).to.eql({
+          SECOND: ['BLINK', 'BLINK'],
+          BLINK: ['1o500m0o500m']
+        });
+      });
+    });
+    return describe('applying', function() {
+      var apply;
+      apply = function(text, arg) {
+        var defn, result;
+        result = "";
+        defn = txtzyme.parse(text);
+        txtzyme.apply(defn, 'TEST', arg, function(message, stack, done) {
+          result += message;
+          return done();
+        });
+        return result;
+      };
+      it('recognizes definitions', function() {
+        return expect(apply("TEST 1o")).to.eql("1o\n");
+      });
+      it('calls definitions', function() {
+        return expect(apply("TEST FOO\nFOO 0o")).to.eql("0o\n");
+      });
+      it('merges results', function() {
+        return expect(apply("TEST 1o FOO 0o\nFOO 10m")).to.eql("1o 10m 0o\n");
+      });
+      it('limits call depth', function() {
+        return expect(apply("TEST o TEST")).to.eql("o o o o o o o o o o\n");
+      });
+      it('handles empty definitions', function() {
+        return expect(apply("TEST")).to.eql("");
+      });
+      it('handles missing definitions', function() {
+        return expect(apply("TEST FOO")).to.eql("");
+      });
+      it('recognizes NL as newline', function() {
+        return expect(apply("TEST 100m NL 200m")).to.eql("100m\n200m\n");
+      });
+      it('recognizes A as argument', function() {
+        return expect(apply("TEST A", 123)).to.eql("123\n");
+      });
+      it('recognizes A0, A1, A2 as accessor', function() {
+        return expect(apply("TEST _ A1 A0 _", ['zero', 'one'])).to.eql("_ one zero _\n");
+      });
+      it('recognizes B0, B1 as accessor', function() {
+        return expect(apply("TEST B4 B3 B2 B1 B0", 6)).to.eql("0 0 1 1 0\n");
+      });
+      it('recognizes C0, C1, C2 as accessor', function() {
+        return expect(apply("TEST C0 C1 C2 C3", 'ABC')).to.eql("65 66 67 32\n");
+      });
+      it('recognizes D0, D1, D2 as accessor', function() {
+        return expect(apply("TEST D3 D2 D1 D0", 123)).to.eql("48 49 50 51\n");
+      });
+      it('recognizes numeric parameter', function() {
+        return expect(apply("TEST IT/25\nIT A", 123)).to.eql("25\n");
+      });
+      return it('recognizes accessor as parameter', function() {
+        return expect(apply("TEST IT/A1\nIT A", [123, 456])).to.eql("456\n");
+      });
+    });
+  });
+
+}).call(this);
+
+});
+require("/plugins/txtzyme/test.coffee");
 })();

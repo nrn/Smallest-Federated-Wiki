@@ -19,6 +19,8 @@ module.exports = exports = (argv) ->
       if err then cb(err)
       try 
         page = JSON.parse(data)
+        if m = loc.match /plugins\/(.+?)\/pages/
+          page.plugin = m[1]
       catch e
         return cb(e)
       cb(null, page)
@@ -45,14 +47,14 @@ module.exports = exports = (argv) ->
   fileio = (file, page, cb) ->
     loc = path.join(argv.db, file)
     unless page?
-      path.exists(loc, (exists) =>
+      fs.exists(loc, (exists) =>
         if exists
           load_parse(loc, cb)
         else
           defloc = path.join(argv.r, 'default-data', 'pages', file)
-          path.exists(defloc, (exists) ->
+          fs.exists(defloc, (exists) ->
             if exists
-              load_parse_copy(defloc, file, cb)
+              load_parse(defloc, cb)
             else
               plugindir = path.join(argv.r, 'client', 'plugins')
               fs.readdir(plugindir , (e, plugins) ->
@@ -67,7 +69,7 @@ module.exports = exports = (argv) ->
                 for plugin in plugins
                   do ->
                     pluginloc = path.join(plugindir, plugin, 'pages', file)
-                    path.exists(pluginloc, (exists) ->
+                    fs.exists(pluginloc, (exists) ->
                       if exists
                         load_parse(pluginloc, cb)
                       else
@@ -78,7 +80,7 @@ module.exports = exports = (argv) ->
       )
     else
       page = JSON.stringify(page, null, 2)
-      path.exists(path.dirname(loc), (exists) ->
+      fs.exists(path.dirname(loc), (exists) ->
         if exists
           fs.writeFile(loc, page, (err) ->
             cb(err)

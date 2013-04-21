@@ -4,6 +4,9 @@
 a {
   text-decoration: none; }
 
+a img {
+  border: 0; }
+
 body {
   top: 0;
   left: 0;
@@ -83,6 +86,18 @@ header {
 
 footer {
   bottom: 0; }
+
+.twins,
+.journal,
+.footer {
+  min-height: 1em;
+  opacity: 1;
+}
+.twins:hover,
+.journal:hover,
+.footer:hover {
+  opacity: 1;
+}
 
 .story {
   padding-bottom: 5px; }
@@ -179,19 +194,25 @@ footer {
 .target {
   background-color: #ffffcc !important; }
 
+.report p,
 .factory p,
 .data p,
 .chart p,
 .footer a,
-.image p {
+.image p,
+p.caption {
   text-align: center;
   margin-bottom: 0;
   color: gray;
   font-size: 70%; }
 
+.twins p {
+  color: gray;
+}
+
 image.remote {
   width:16px;
-  height:26px;
+  height:16px;
 }
 
 p.readout {
@@ -218,8 +239,16 @@ p.readout {
     box-shadow: 2px 1px 24px rgba(0, 0, 0, 0.4);
     z-index: 10; }
 
+.page.plugin {
+  box-shadow: inset 0px 0px 40px 0px rgba(0,220,0,.5);
+}
+
 .page.local {
   box-shadow: inset 0px 0px 40px 0px rgba(220,180,0,.7);
+}
+
+.page.remote {
+  box-shadow: inset 0px 0px 40px 0px rgba(0,180,220,.5);
 }
 
 .factory,
