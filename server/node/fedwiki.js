@@ -112,11 +112,6 @@ module.exports = exports = function (opts) {
 
   router.on('system/sitemap.json', p.jsonCORS)
   router.on('system/sitemap.json', function (req, res) {
-    function cb (e, sitemap) {
-      if (e) return res.e(e)
-      res.end(JSON.stringify(sitemap, null, 2))
-    }
-
     glob(opts.db + '/**', function (e, files) {
       files = files.map(function (file) {
         var stream = filed(file)
@@ -125,11 +120,13 @@ module.exports = exports = function (opts) {
           JSONStream.parse(false).on('root', function (el) { this.emit('data', { slug: file, title: el.title })})
         )
       })
-      es.concat.apply(null, files).pipe(es.writeArray(cb))
+      es.concat.apply(null, files)
+        .pipe(JSONStream.stringify())
+        .pipe(res)
     })
   })
 
-  router.on('system/plugins.json', p.jsonCORS)
+  router.on('system/slugs.json', p.jsonCORS)
   router.on('system/slugs.json', function (req, res) {
     pageHandler.list(function (e, files) {
       res.end(JSON.stringify(files, null, 2))
